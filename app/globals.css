@@ -2,16 +2,15 @@
 
 :root {
   --ink: #111111;
-  --muted: #5f6670;
+  --muted: #5d636c;
   --paper: #ffffff;
-  --soft: #f4f1ea;
+  --soft: #f5f2eb;
   --line: #d9d6cf;
+  --blue: #1d4ed8;
 }
 
 * { box-sizing: border-box; }
-
 html { scroll-behavior: smooth; }
-
 body {
   margin: 0;
   background: var(--paper);
@@ -19,7 +18,6 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   text-rendering: optimizeLegibility;
 }
-
 a { color: inherit; }
 
 .category-rail {
@@ -28,9 +26,8 @@ a { color: inherit; }
   z-index: 20;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  height: 6px;
+  height: 5px;
 }
-
 .category-rail span:nth-child(1) { background: #1d4ed8; }
 .category-rail span:nth-child(2) { background: #7e22ce; }
 .category-rail span:nth-child(3) { background: #be185d; }
@@ -40,159 +37,102 @@ a { color: inherit; }
 .category-rail span:nth-child(7) { background: #a16207; }
 
 .site-header {
-  width: min(1180px, calc(100% - 48px));
-  margin: 0 auto;
-  min-height: 102px;
+  min-height: 72px;
+  padding: 5px 20px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--line);
 }
-
 .wordmark {
-  font: italic 700 34px/1 Georgia, "Times New Roman", serif;
-  letter-spacing: -1px;
+  font: italic 700 27px/1 Georgia, "Times New Roman", serif;
+  letter-spacing: -.8px;
   text-decoration: none;
 }
-
 .header-cta,
-.primary-cta {
+.secondary-cta {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 48px;
-  padding: 0 24px;
+  min-height: 42px;
+  padding: 0 16px;
   border: 1px solid var(--ink);
   background: var(--ink);
   color: white;
-  font-size: 15px;
-  font-weight: 700;
-  text-decoration: none;
-  transition: transform 160ms ease, background 160ms ease, color 160ms ease;
-}
-
-.header-cta:hover,
-.primary-cta:hover { transform: translateY(-2px); }
-
-.header-cta:focus-visible,
-.primary-cta:focus-visible,
-.wordmark:focus-visible {
-  outline: 3px solid #1d4ed8;
-  outline-offset: 4px;
-}
-
-.hero {
-  width: min(1180px, calc(100% - 48px));
-  margin: 0 auto;
-  min-height: 660px;
-  display: grid;
-  grid-template-columns: 1.08fr .92fr;
-  gap: 88px;
-  align-items: center;
-  padding: 72px 0 84px;
-}
-
-.eyebrow,
-.issue-kicker {
-  margin: 0 0 18px;
-  color: #1d4ed8;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
-  letter-spacing: .14em;
+  text-decoration: none;
+}
+.header-cta:focus-visible,
+.secondary-cta:focus-visible,
+.wordmark:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 3px;
+}
+
+.conversion-hero {
+  padding: 42px 20px 56px;
+  background: linear-gradient(180deg, #fff 0%, #fff 58%, var(--soft) 58%, var(--soft) 100%);
+}
+.hero-copy { max-width: 650px; margin: 0 auto 34px; }
+.eyebrow,
+.signup-kicker {
+  margin: 0 0 14px;
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .13em;
   text-transform: uppercase;
 }
-
 h1 {
-  max-width: 760px;
   margin: 0;
-  font: 700 clamp(58px, 7.4vw, 104px)/.92 Georgia, "Times New Roman", serif;
-  letter-spacing: -.055em;
+  font: 700 clamp(43px, 12vw, 68px)/.96 Georgia, "Times New Roman", serif;
+  letter-spacing: -.045em;
 }
-
 .hero-description {
-  max-width: 650px;
-  margin: 34px 0 30px;
-  color: #333840;
-  font-size: clamp(19px, 2vw, 24px);
-  line-height: 1.5;
+  margin: 22px 0 20px;
+  color: #34383e;
+  font-size: 17px;
+  line-height: 1.55;
 }
-
-.microcopy {
-  margin: 16px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.issue-preview {
-  min-height: 470px;
-  padding: 44px;
-  background: var(--soft);
-  border: 1px solid #d7d1c5;
-  box-shadow: 18px 18px 0 #111;
-  transform: rotate(1.5deg);
-}
-
-.issue-line {
-  width: 74%;
-  height: 16px;
-  margin: 0 0 12px;
-  background: #111;
-}
-
-.issue-line-wide { width: 100%; height: 34px; }
-
-.issue-categories {
+.trust-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin: 34px 0;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+  list-style: none;
+}
+.trust-list li { display: flex; align-items: center; gap: 7px; }
+.trust-list li::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #15803d;
 }
 
-.issue-categories span {
-  padding: 7px 9px;
+.signup-card {
+  max-width: 650px;
+  margin: 0 auto;
+  padding: 28px 22px;
+  scroll-margin-top: 20px;
   background: white;
   border: 1px solid #cfc9bd;
-  font-size: 12px;
-  font-weight: 700;
+  box-shadow: 8px 8px 0 #111;
 }
-
-blockquote {
-  margin: 42px 0 0;
-  font: italic 700 23px/1.45 Georgia, "Times New Roman", serif;
+.signup-card h2 {
+  margin: 0;
+  font: 700 34px/1.02 Georgia, "Times New Roman", serif;
+  letter-spacing: -.035em;
 }
-
-.principles {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
-
-.principles article { padding: 54px max(32px, 5vw); }
-.principles article + article { border-left: 1px solid var(--line); }
-.principles span { color: #1d4ed8; font: 700 13px/1 Arial, sans-serif; }
-.principles h2 { margin: 26px 0 14px; font: 700 28px/1.1 Georgia, serif; }
-.principles p { max-width: 360px; margin: 0; color: var(--muted); font-size: 16px; line-height: 1.55; }
-
-.signup-section {
-  width: min(1180px, calc(100% - 48px));
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: .78fr 1.22fr;
-  gap: 90px;
-  align-items: start;
-  padding: 112px 0;
-}
-
-.signup-intro { position: sticky; top: 56px; }
-.signup-intro h2 { margin: 0 0 22px; font: 700 clamp(46px, 5vw, 74px)/.96 Georgia, serif; letter-spacing: -.045em; }
-.signup-intro > p:last-child { max-width: 430px; color: var(--muted); font-size: 18px; line-height: 1.55; }
-
-.form-shell {
-  min-height: 570px;
-  background: #f7f8fb;
-  border: 1px solid #cbd3df;
-  padding: clamp(28px, 5vw, 58px);
+.signup-description {
+  margin: 12px 0 24px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 .siracusa-signup-form.sib-form { padding: 0 !important; background: transparent !important; }
@@ -204,57 +144,65 @@ blockquote {
   border-radius: 0 !important;
   background: transparent !important;
 }
-.siracusa-signup-form .form-field { margin-bottom: 28px; }
+.siracusa-signup-form .form-field { margin-bottom: 18px; }
 .siracusa-signup-form .entry__label {
   display: block;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   color: var(--ink);
-  font: 700 17px/1.3 Arial, sans-serif;
+  font: 700 14px/1.3 Arial, sans-serif;
 }
 .siracusa-signup-form .entry__field { margin: 0; border: 0; }
 .siracusa-signup-form .entry__field .input {
   width: 100%;
-  min-height: 64px;
-  padding: 0 18px;
-  border: 1px solid #9ca6b5;
+  min-height: 54px;
+  padding: 0 15px;
+  border: 1px solid #8e98a6;
   border-radius: 0;
   background: white;
   color: var(--ink);
-  font: 17px/1 Arial, sans-serif;
+  font: 16px/1 Arial, sans-serif;
 }
 .siracusa-signup-form .entry__field .input:focus {
-  outline: 3px solid #1d4ed8;
+  outline: 3px solid var(--blue);
   outline-offset: 2px;
 }
 .siracusa-signup-form .entry__specification {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   color: var(--muted);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 12px;
+  line-height: 1.4;
 }
-.siracusa-signup-form .form-consent { margin: 0 0 28px; }
+.siracusa-signup-form .form-consent { margin: 0 0 18px; }
 .siracusa-signup-form .checkbox-container {
   display: grid;
-  grid-template-columns: 24px 1fr;
-  gap: 12px;
+  grid-template-columns: 22px 1fr;
+  gap: 10px;
   align-items: start;
-  color: #333840;
-  font-size: 14px;
-  line-height: 1.5;
+  color: #3f444b;
+  font-size: 12px;
+  line-height: 1.45;
 }
 .siracusa-signup-form .checkbox-container a { text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .siracusa-signup-form .checkbox {
-  width: 22px;
-  height: 22px;
-  border: 1px solid #8c96a5;
+  width: 21px;
+  height: 21px;
+  border: 1px solid #7d8795;
   border-radius: 0;
   background: white;
 }
 .siracusa-signup-form .input_replaced:checked + .checkbox { background: #111; border-color: #111; }
-.siracusa-signup-form .captcha-wrap { min-height: 78px; margin-bottom: 28px; overflow: hidden; }
+.siracusa-signup-form .captcha-wrap {
+  min-height: 70px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  transform: scale(.86);
+  transform-origin: left top;
+  width: 116%;
+}
 .siracusa-signup-form .form-submit {
-  min-height: 52px;
-  padding: 0 28px;
+  width: 100%;
+  min-height: 54px;
+  padding: 0 22px;
   border: 1px solid #111;
   border-radius: 0;
   background: #111;
@@ -264,48 +212,108 @@ blockquote {
   text-transform: none;
 }
 .siracusa-signup-form .form-submit:hover { background: #303030; }
-.siracusa-signup-form .form-message { margin: 0 0 24px; padding: 14px 16px; border: 1px solid; border-radius: 0; font-size: 14px; line-height: 1.45; }
+.siracusa-signup-form .form-message {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid;
+  border-radius: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
 .siracusa-signup-form .form-message-error { color: #661d1d; background: #ffeded; border-color: #ff4949; }
 .siracusa-signup-form .form-message-success { color: #085229; background: #e7faf0; border-color: #13ce66; }
 .siracusa-signup-form .input--hidden { position: absolute; left: -5000px; }
 .siracusa-signup-form .progress-indicator__icon { width: 18px; height: 18px; margin-right: 8px; fill: currentColor; }
 
-.privacy-page {
-  width: min(760px, calc(100% - 48px));
-  margin: 0 auto;
-  padding: 72px 0 120px;
+.value-strip { border-top: 1px solid var(--line); }
+.value-strip article {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 12px;
+  padding: 27px 20px;
+  border-bottom: 1px solid var(--line);
 }
-.privacy-page > .wordmark { display: inline-block; margin-bottom: 100px; }
-.privacy-page h1 { margin-bottom: 38px; font-size: clamp(48px, 7vw, 78px); }
-.privacy-page > p:not(.eyebrow) { color: #333840; font-size: 18px; line-height: 1.7; }
-.text-link { display: inline-block; margin-top: 28px; font-weight: 700; text-underline-offset: 4px; }
+.value-strip article > span { padding-top: 4px; color: var(--blue); font-size: 11px; font-weight: 800; }
+.value-strip h2 { margin: 0 0 7px; font: 700 21px/1.15 Georgia, serif; }
+.value-strip p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+
+.content-proof { padding: 64px 20px 72px; }
+.content-proof h2 { margin: 0; font: 700 42px/.98 Georgia, serif; letter-spacing: -.04em; }
+.edition-preview { margin-top: 30px; }
+.edition-intro { margin: 0 0 15px; color: var(--muted); font-size: 14px; }
+.category-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.category-list span {
+  padding: 8px 10px;
+  background: var(--soft);
+  border: 1px solid #d7d1c5;
+  font-size: 12px;
+  font-weight: 700;
+}
+.category-list span:nth-child(1) { border-top: 4px solid #1d4ed8; }
+.category-list span:nth-child(2) { border-top: 4px solid #7e22ce; }
+.category-list span:nth-child(3) { border-top: 4px solid #be185d; }
+.category-list span:nth-child(4) { border-top: 4px solid #15803d; }
+.category-list span:nth-child(5) { border-top: 4px solid #c2410c; }
+.category-list span:nth-child(6) { border-top: 4px solid #0e7490; }
+.category-list span:nth-child(7) { border-top: 4px solid #a16207; }
+.secondary-cta { margin-top: 24px; min-height: 48px; padding: 0 22px; }
 
 footer {
-  min-height: 280px;
-  padding: 64px max(24px, calc((100vw - 1180px) / 2));
+  min-height: 250px;
+  padding: 52px 20px;
   background: #111;
   color: white;
 }
-
-.footer-wordmark { display: inline-block; margin-bottom: 24px; }
-footer > p { max-width: 520px; color: #d1d1d1; line-height: 1.5; }
-.footer-meta { margin-top: 54px; color: #858585; font-size: 12px; }
+.footer-wordmark { display: inline-block; margin-bottom: 20px; }
+footer > p { max-width: 520px; color: #d1d1d1; font-size: 14px; line-height: 1.5; }
+.footer-meta { margin-top: 44px; color: #858585; font-size: 12px; }
 .footer-meta a { color: #d1d1d1; text-underline-offset: 3px; }
 
-@media (max-width: 850px) {
-  .site-header, .hero, .signup-section { width: min(100% - 32px, 680px); }
-  .site-header { min-height: 84px; }
-  .wordmark { font-size: 29px; }
-  .header-cta { min-height: 42px; padding: 0 18px; }
-  .hero { grid-template-columns: 1fr; gap: 60px; padding: 62px 0 80px; }
-  h1 { font-size: clamp(54px, 15vw, 82px); }
-  .issue-preview { min-height: 390px; padding: 32px; box-shadow: 10px 10px 0 #111; }
-  .principles { grid-template-columns: 1fr; }
-  .principles article + article { border-left: 0; border-top: 1px solid var(--line); }
-  .signup-section { grid-template-columns: 1fr; gap: 48px; padding: 80px 0; }
-  .signup-intro { position: static; }
-  .form-shell { min-height: 560px; padding: 30px 20px; }
-  .siracusa-signup-form .captcha-wrap { transform: scale(.88); transform-origin: left top; width: 114%; margin-bottom: 16px; }
+.privacy-page {
+  width: min(760px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 48px 0 100px;
+}
+.privacy-page > .wordmark { display: inline-block; margin-bottom: 72px; }
+.privacy-page h1 { margin-bottom: 30px; font-size: clamp(42px, 12vw, 72px); }
+.privacy-page > p:not(.eyebrow) { color: #333840; font-size: 17px; line-height: 1.7; }
+.text-link { display: inline-block; margin-top: 24px; font-weight: 700; text-underline-offset: 4px; }
+
+@media (min-width: 860px) {
+  .site-header { width: min(1160px, calc(100% - 64px)); margin: 0 auto; padding-inline: 0; min-height: 84px; }
+  .wordmark { font-size: 31px; }
+  .header-cta { min-height: 46px; padding: 0 22px; font-size: 14px; }
+  .conversion-hero {
+    display: grid;
+    grid-template-columns: 1.05fr .95fr;
+    gap: 70px;
+    align-items: center;
+    padding: 74px max(32px, calc((100vw - 1160px) / 2)) 90px;
+    background: linear-gradient(90deg, #fff 0%, #fff 61%, var(--soft) 61%, var(--soft) 100%);
+  }
+  .hero-copy { margin: 0; }
+  h1 { font-size: clamp(58px, 5.8vw, 82px); }
+  .hero-description { max-width: 650px; margin-top: 28px; font-size: 19px; }
+  .trust-list { font-size: 13px; }
+  .signup-card { width: 100%; margin: 0; padding: 36px; box-shadow: 12px 12px 0 #111; }
+  .signup-card h2 { font-size: 39px; }
+  .siracusa-signup-form .captcha-wrap { transform: none; width: auto; min-height: 78px; margin-bottom: 18px; }
+  .value-strip { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .value-strip article { min-height: 170px; padding: 38px max(28px, 4vw); border-right: 1px solid var(--line); }
+  .value-strip article:last-child { border-right: 0; }
+  .content-proof {
+    width: min(1160px, calc(100% - 64px));
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: .8fr 1.2fr;
+    gap: 90px;
+    align-items: start;
+    padding: 96px 0 108px;
+  }
+  .content-proof h2 { font-size: 60px; }
+  .edition-preview { margin-top: 0; padding-top: 26px; }
+  .category-list span { padding: 10px 12px; font-size: 13px; }
+  footer { padding: 66px max(32px, calc((100vw - 1160px) / 2)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

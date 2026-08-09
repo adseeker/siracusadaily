@@ -1,9 +1,45 @@
+"use client";
+
+import { useEffect } from "react";
+
 const BREVO_ACTION =
   "https://39cb48bf.sibforms.com/serve/MUIFAOp5zLTzYBJIMKOyXmZ89fHVYVveXCqSMnlReX5WUeIX7FpPiP7Ou3EUD5vsXDGFg-cuQaPOsZtPIh7nBEPouXEAYqUhZ5X1XhnuPQt-oPATCUJokJDYJti_4FLFJEIcluIFnBp2I17sWXA0wWgdBVE2dmimANrXp3ztKWtHebpEOvlTV32NutgYpFBBjdbYFKlUIYgnucRCpg==";
 
 export function BrevoSignupForm() {
+  useEffect(() => {
+    const brevoWindow = window as typeof window & Record<string, unknown>;
+    brevoWindow.REQUIRED_CODE_ERROR_MESSAGE = "Scegli un prefisso paese";
+    brevoWindow.LOCALE = "it";
+    brevoWindow.EMAIL_INVALID_MESSAGE = "Controlla che l’indirizzo email sia scritto correttamente.";
+    brevoWindow.REQUIRED_ERROR_MESSAGE = "Questo campo è obbligatorio.";
+    brevoWindow.GENERIC_INVALID_MESSAGE = "Controlla i dati inseriti.";
+    brevoWindow.translation = {
+      common: {
+        selectedList: "{quantity} lista selezionata",
+        selectedLists: "{quantity} liste selezionate",
+      },
+    };
+    brevoWindow.AUTOHIDE = false;
+    brevoWindow.handleCaptchaResponse = () => {
+      const captcha = document.getElementById("sib-captcha");
+      captcha?.parentElement?.querySelector(".sib-captcha-message")?.remove();
+    };
+
+    const loadScript = (id: string, src: string, async = false) => {
+      if (document.getElementById(id)) return;
+      const script = document.createElement("script");
+      script.id = id;
+      script.src = src;
+      script.defer = !async;
+      script.async = async;
+      document.body.appendChild(script);
+    };
+
+    loadScript("brevo-main-script", "https://sibforms.com/forms/end-form/build/main.js");
+    loadScript("brevo-recaptcha-script", "https://www.google.com/recaptcha/api.js?hl=it", true);
+  }, []);
+
   return (
-    <>
       <div className="sib-form siracusa-signup-form">
         <div id="error-message" className="sib-form-message-panel form-message form-message-error" aria-live="polite">
           <span>Non siamo riusciti a completare l’iscrizione. Riprova tra poco.</span>
@@ -57,7 +93,7 @@ export function BrevoSignupForm() {
                 <svg className="icon clickable__icon progress-indicator__icon sib-hide-loader-icon" viewBox="0 0 512 512" aria-hidden="true">
                   <path d="M460.115 373.846l-74.262-43.328a184.69 184.69 0 0 0 18.909-73.207c1.18-18.196 18.434-31.23 36.63-30.05l54.143 3.51c18.196 1.18 31.23 18.434 30.05 36.63a307.77 307.77 0 0 1-31.982 123.77c-8.57 16.1-27.388 21.247-43.488 12.675z" />
                 </svg>
-                Iscrivimi
+                Iscriviti gratis
               </button>
 
               <input type="text" name="email_address_check" value="" className="input--hidden" readOnly />
@@ -66,9 +102,5 @@ export function BrevoSignupForm() {
           </div>
         </div>
       </div>
-
-      <script defer src="https://sibforms.com/forms/end-form/build/main.js" />
-      <script async src="https://www.google.com/recaptcha/api.js?hl=it" />
-    </>
   );
 }

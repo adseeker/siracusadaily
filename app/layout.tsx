@@ -41,23 +41,6 @@ export default function RootLayout({
     <html lang="it">
       <head>
         <link rel="stylesheet" href="https://sibforms.com/forms/end-form/build/sib-styles.css" />
-        <script
-          id="brevo-form-config"
-          dangerouslySetInnerHTML={{ __html: `window.REQUIRED_CODE_ERROR_MESSAGE = 'Scegli un prefisso paese';
-window.LOCALE = 'it';
-window.EMAIL_INVALID_MESSAGE = 'Controlla che l’indirizzo email sia scritto correttamente.';
-window.REQUIRED_ERROR_MESSAGE = 'Questo campo è obbligatorio.';
-window.GENERIC_INVALID_MESSAGE = 'Controlla i dati inseriti.';
-window.translation = { common: { selectedList: '{quantity} lista selezionata', selectedLists: '{quantity} liste selezionate' } };
-window.AUTOHIDE = Boolean(0);
-window.handleCaptchaResponse = function () {
-  var captcha = document.getElementById('sib-captcha');
-  if (captcha && captcha.parentNode) {
-    var message = captcha.parentNode.querySelector('.sib-captcha-message');
-    if (message) message.remove();
-  }
-};` }}
-        />
       </head>
       <body>{children}</body>
     </html>

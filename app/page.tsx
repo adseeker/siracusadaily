@@ -11,66 +11,75 @@ export default function Home() {
         <a className="wordmark" href="#top" aria-label="SiracusaDaily, torna all’inizio">
           SiracusaDaily
         </a>
-        <a className="header-cta" href="#iscriviti">Iscriviti</a>
+        <a className="header-cta" href="#iscriviti">Iscriviti gratis</a>
       </header>
 
-      <section className="hero" id="top">
+      <section className="conversion-hero" id="top">
         <div className="hero-copy">
           <p className="eyebrow">Newsletter locale quotidiana</p>
-          <h1>Siracusa, ogni giorno. Senza rumore.</h1>
+          <h1>Tutto quello che conta a Siracusa. In una sola email.</h1>
           <p className="hero-description">
-            Una selezione chiara delle notizie più importanti di Siracusa e provincia,
-            direttamente nella tua email.
+            Ogni giorno selezioniamo e riassumiamo le notizie più utili di Siracusa e provincia.
+            Tu apri la newsletter e sai già cosa è successo.
           </p>
-          <a className="primary-cta" href="#iscriviti">Ricevi SiracusaDaily</a>
-          <p className="microcopy">Un’unica email. Puoi annullare l’iscrizione quando vuoi.</p>
+          <ul className="trust-list" aria-label="Vantaggi dell’iscrizione">
+            <li>Gratis</li>
+            <li>Un solo invio al giorno</li>
+            <li>Disiscrizione con un clic</li>
+          </ul>
         </div>
 
-        <aside className="issue-preview" aria-label="Cosa trovi nella newsletter">
-          <p className="issue-kicker">Ogni edizione</p>
-          <div className="issue-line issue-line-wide" />
-          <div className="issue-line" />
-          <div className="issue-categories">
-            <span>Notizie</span>
-            <span>Politica</span>
+        <div className="signup-card" id="iscriviti">
+          <p className="signup-kicker">Iscriviti gratis</p>
+          <h2>Ricevi SiracusaDaily</h2>
+          <p className="signup-description">
+            Inserisci la tua email. Niente rumore, solo Siracusa e provincia.
+          </p>
+          <BrevoSignupForm />
+        </div>
+      </section>
+
+      <section className="value-strip" aria-label="Perché leggere SiracusaDaily">
+        <article>
+          <span>01</span>
+          <div>
+            <h2>Locale davvero</h2>
+            <p>Solo contenuti che riguardano Siracusa e i comuni della provincia.</p>
+          </div>
+        </article>
+        <article>
+          <span>02</span>
+          <div>
+            <h2>Già selezionato</h2>
+            <p>Le notizie duplicate vengono unite e quelle irrilevanti escluse.</p>
+          </div>
+        </article>
+        <article>
+          <span>03</span>
+          <div>
+            <h2>Subito comprensibile</h2>
+            <p>Ogni notizia è spiegata in poche righe chiare e complete.</p>
+          </div>
+        </article>
+      </section>
+
+      <section className="content-proof">
+        <div>
+          <p className="eyebrow">Dentro ogni edizione</p>
+          <h2>La città, ordinata per te.</h2>
+        </div>
+        <div className="edition-preview">
+          <p className="edition-intro">Una selezione equilibrata tra:</p>
+          <div className="category-list" aria-label="Categorie della newsletter">
+            <span>Notizie e cronaca</span>
+            <span>Politica ed economia</span>
             <span>Cultura</span>
             <span>Sport</span>
             <span>Eventi</span>
             <span>Servizi</span>
             <span>Opportunità</span>
           </div>
-          <blockquote>
-            “Quello che serve sapere, scritto per essere capito anche senza aprire dieci link.”
-          </blockquote>
-        </aside>
-      </section>
-
-      <section className="principles" aria-label="Come funziona SiracusaDaily">
-        <article>
-          <span>01</span>
-          <h2>Locale davvero</h2>
-          <p>Solo fatti che riguardano Siracusa e i comuni della provincia.</p>
-        </article>
-        <article>
-          <span>02</span>
-          <h2>Essenziale</h2>
-          <p>Notizie selezionate, ordinate e riassunte in modo chiaro.</p>
-        </article>
-        <article>
-          <span>03</span>
-          <h2>Una volta al giorno</h2>
-          <p>Un solo appuntamento quotidiano, senza notifiche continue.</p>
-        </article>
-      </section>
-
-      <section className="signup-section" id="iscriviti">
-        <div className="signup-intro">
-          <p className="eyebrow">Iscrizione</p>
-          <h2>La città nella tua posta.</h2>
-          <p>Inserisci il tuo indirizzo email per ricevere SiracusaDaily.</p>
-        </div>
-        <div className="form-shell">
-          <BrevoSignupForm />
+          <a className="secondary-cta" href="#iscriviti">Voglio riceverla</a>
         </div>
       </section>
 
