@@ -357,13 +357,14 @@ footer > p { max-width: 520px; color: #d1d1d1; font-size: 14px; line-height: 1.5
     width: min(1160px, calc(100% - 64px));
     margin: 0 auto;
     display: grid;
-    grid-template-columns: .8fr 1.2fr;
+    grid-template-columns: .9fr 1.1fr;
     gap: 90px;
     align-items: start;
     padding: 96px 0 108px;
   }
+  .content-proof-heading { grid-column: 2; grid-row: 1; }
   .content-proof h2 { font-size: 60px; }
-  .edition-preview { margin-top: 0; padding-top: 26px; }
+  .edition-preview { grid-column: 1; grid-row: 1; margin-top: 0; padding-top: 12px; }
   .category-list span { padding: 10px 12px; font-size: 13px; }
   footer { padding: 66px max(32px, calc((100vw - 1160px) / 2)); }
 }

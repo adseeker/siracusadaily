@@ -57,8 +57,7 @@ export default function Home() {
       </section>
 
       <section className="content-proof">
-        <div>
-          <p className="eyebrow">Dentro ogni edizione</p>
+        <div className="content-proof-heading">
           <h2>La città, ordinata per te.</h2>
         </div>
         <div className="edition-preview">
