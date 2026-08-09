@@ -7,10 +7,10 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/zsh</string>
-    <string>/Users/marcocardile/Documents/Codex/SiracusaDaily/site/backend/scripts/run_daily.sh</string>
+    <string>/Users/marcocardile/Library/Application Support/SiracusaDaily/scripts/run_daily.sh</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/marcocardile/Documents/Codex/SiracusaDaily/site/backend</string>
+  <string>/Users/marcocardile/Library/Application Support/SiracusaDaily</string>
   <key>StartCalendarInterval</key>
   <dict>
     <key>Hour</key>
@@ -21,8 +21,8 @@
   <key>ProcessType</key>
   <string>Background</string>
   <key>StandardOutPath</key>
-  <string>/Users/marcocardile/Documents/Codex/SiracusaDaily/site/backend/runtime/logs/launchd.stdout.log</string>
+  <string>/Users/marcocardile/Library/Application Support/SiracusaDaily/runtime/logs/launchd.stdout.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/marcocardile/Documents/Codex/SiracusaDaily/site/backend/runtime/logs/launchd.stderr.log</string>
+  <string>/Users/marcocardile/Library/Application Support/SiracusaDaily/runtime/logs/launchd.stderr.log</string>
 </dict>
 </plist>

@@ -29,4 +29,7 @@ Il run:
 
 ## Pianificazione macOS
 
-Il LaunchAgent incluso è configurato per le 06:30, ora locale. Va installato solo dopo aver completato `.env.local` ed eseguito con successo almeno un run manuale.
+Il LaunchAgent incluso è configurato per le 06:30, ora locale. La copia operativa
+va installata in `~/Library/Application Support/SiracusaDaily`, così il processo in
+background non dipende dai permessi macOS della cartella `Documents`. Va attivato
+solo dopo aver completato `.env.local` ed eseguito con successo almeno un run manuale.
