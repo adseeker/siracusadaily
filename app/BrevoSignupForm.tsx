@@ -69,7 +69,9 @@ export function BrevoSignupForm() {
           <div id="sib-container" className="sib-container--large sib-container--vertical">
             <form id="sib-form" method="POST" action={BREVO_ACTION} data-type="subscription">
               <div className="form-field">
-                <label className="entry__label" htmlFor="EMAIL">Il tuo indirizzo email</label>
+                <label className="entry__label" htmlFor="EMAIL">
+                  Inserisci il tuo indirizzo email<span className="required-mark" aria-hidden="true">*</span>
+                </label>
                 <div className="entry__field">
                   <input
                     className="input"
@@ -82,7 +84,7 @@ export function BrevoSignupForm() {
                     required
                   />
                 </div>
-                <p className="entry__specification">Riceverai la newsletter al prossimo invio.</p>
+                <p className="entry__specification">Riceverai un’email per confermare l’iscrizione.</p>
               </div>
 
               <div className="form-consent">
@@ -92,6 +94,7 @@ export function BrevoSignupForm() {
                   <span>
                     Acconsento al trattamento del mio indirizzo email per ricevere la newsletter quotidiana
                     SiracusaDaily. Ho letto l’<a href="/privacy">Informativa sulla privacy</a>.
+                    <span className="required-mark" aria-hidden="true">*</span>
                   </span>
                 </label>
               </div>
@@ -109,8 +112,13 @@ export function BrevoSignupForm() {
                 <svg className="icon clickable__icon progress-indicator__icon sib-hide-loader-icon" viewBox="0 0 512 512" aria-hidden="true">
                   <path d="M460.115 373.846l-74.262-43.328a184.69 184.69 0 0 0 18.909-73.207c1.18-18.196 18.434-31.23 36.63-30.05l54.143 3.51c18.196 1.18 31.23 18.434 30.05 36.63a307.77 307.77 0 0 1-31.982 123.77c-8.57 16.1-27.388 21.247-43.488 12.675z" />
                 </svg>
-                Iscriviti gratis
+                ISCRIVITI
               </button>
+
+              <p className="form-disclaimer">
+                L’iscrizione alla newsletter SiracusaDaily è completamente gratuita. Puoi annullare
+                l’iscrizione in qualsiasi momento.
+              </p>
 
               <input type="text" name="email_address_check" value="" className="input--hidden" readOnly />
               <input type="hidden" name="locale" value="it" />

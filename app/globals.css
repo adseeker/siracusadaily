@@ -172,6 +172,7 @@ h1 {
   font-size: 12px;
   line-height: 1.4;
 }
+.siracusa-signup-form .required-mark { color: #ff4949; }
 .siracusa-signup-form .form-consent { margin: 0 0 18px; }
 .siracusa-signup-form .checkbox-container {
   display: grid;
@@ -212,6 +213,12 @@ h1 {
   text-transform: none;
 }
 .siracusa-signup-form .form-submit:hover { background: #303030; }
+.siracusa-signup-form .form-disclaimer {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
 .siracusa-signup-form .form-message {
   margin: 0 0 18px;
   padding: 20px;

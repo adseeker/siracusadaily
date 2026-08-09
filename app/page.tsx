@@ -30,10 +30,9 @@ export default function Home() {
         </div>
 
         <div className="signup-card" id="iscriviti">
-          <p className="signup-kicker">Iscriviti gratis</p>
-          <h2>Ricevi SiracusaDaily</h2>
+          <h2>Iscriviti a SiracusaDaily</h2>
           <p className="signup-description">
-            Inserisci la tua email. Niente rumore, solo Siracusa e provincia.
+            Ogni giorno, una selezione chiara delle notizie più importanti su Siracusa e provincia.
           </p>
           <BrevoSignupForm />
         </div>
