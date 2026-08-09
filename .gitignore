@@ -30,6 +30,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!/backend/.env.local.example
 
 # vercel
 .vercel
@@ -39,3 +40,14 @@ yarn-error.log*
 /outputs/
 /work/
 /.openai/
+
+# local newsletter engine
+/backend/.venv/
+/backend/.env.local
+/backend/runtime/
+**/__pycache__/
+*.egg-info/
+*.py[cod]
+*.db
+*.db-shm
+*.db-wal
