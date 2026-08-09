@@ -57,21 +57,60 @@ export default function Home() {
       </section>
 
       <section className="content-proof">
-        <div className="content-proof-heading">
-          <h2>La città, ordinata per te.</h2>
-        </div>
-        <div className="edition-preview">
-          <p className="edition-intro">Una selezione equilibrata tra:</p>
-          <div className="category-list" aria-label="Categorie della newsletter">
-            <span>Notizie e cronaca</span>
-            <span>Politica ed economia</span>
-            <span>Cultura</span>
-            <span>Sport</span>
-            <span>Eventi</span>
-            <span>Servizi e utilità</span>
-            <span>Lavoro e opportunità</span>
+        <div className="content-proof-copy">
+          <div className="content-proof-heading">
+            <h2>La città, ordinata per te.</h2>
           </div>
-          <a className="secondary-cta" href="#iscriviti">Voglio riceverla</a>
+          <div className="edition-preview">
+            <p className="edition-intro">Ogni giorno, una selezione equilibrata tra:</p>
+            <div className="category-list" aria-label="Categorie della newsletter">
+              <span>Notizie e cronaca</span>
+              <span>Politica ed economia</span>
+              <span>Cultura</span>
+              <span>Sport</span>
+              <span>Eventi</span>
+              <span>Servizi e utilità</span>
+              <span>Lavoro e opportunità</span>
+            </div>
+            <a className="secondary-cta" href="#iscriviti">Voglio riceverla</a>
+          </div>
+        </div>
+
+        <div className="phone-showcase" role="img" aria-label="Esempio di SiracusaDaily visualizzata su uno smartphone">
+          <div className="phone-frame">
+            <div className="phone-speaker" aria-hidden="true" />
+            <div className="phone-screen">
+              <div className="phone-newsletter-header">
+                <strong>SiracusaDaily</strong>
+                <span>Edizione del 09/08/2026</span>
+              </div>
+              <div className="phone-newsletter-section phone-newsletter-news">
+                <div className="phone-category">Notizie e cronaca</div>
+                <article>
+                  <strong>Murro di Porco, il faro trasformato in discarica</strong>
+                  <p>Il consigliere Ansaldi denuncia rifiuti e degrado nell’area del faro.</p>
+                </article>
+                <article>
+                  <strong>Riparato il guasto idrico in Traversa Carrozziere</strong>
+                  <p>Concluso l’intervento sulla rete e ripristinato il servizio.</p>
+                </article>
+              </div>
+              <div className="phone-newsletter-section phone-newsletter-politics">
+                <div className="phone-category">Politica ed economia</div>
+                <article>
+                  <strong>Etna, la Cna propone un piano in tre livelli</strong>
+                  <p>Comiso indicato come alternativa per limitare i disagi ai voli.</p>
+                </article>
+              </div>
+              <div className="phone-newsletter-section phone-newsletter-events">
+                <div className="phone-category">Eventi</div>
+                <article>
+                  <strong>Frutta Fresca Home Edition a Palazzolo Acreide</strong>
+                  <p>La quarta edizione torna in via Soccorso 7.</p>
+                </article>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
