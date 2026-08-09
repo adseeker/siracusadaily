@@ -8,6 +8,10 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://siracusadaily.com"),
   title,
   description,
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    shortcut: "/favicon.svg",
+  },
   openGraph: {
     title,
     description,
