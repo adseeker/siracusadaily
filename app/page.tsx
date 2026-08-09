@@ -36,22 +36,22 @@ export default function Home() {
         <article>
           <span>01</span>
           <div>
-            <h2>Locale davvero</h2>
+            <h2>Siracusa e provincia</h2>
             <p>Solo contenuti che riguardano Siracusa e i comuni della provincia.</p>
           </div>
         </article>
         <article>
           <span>02</span>
           <div>
-            <h2>Già selezionato</h2>
-            <p>Le notizie duplicate vengono unite e quelle irrilevanti escluse.</p>
+            <h2>Newsletter curata</h2>
+            <p>Le notizie vengono attentamente selezionate ogni giorno, per darti le informazioni più rilevanti.</p>
           </div>
         </article>
         <article>
           <span>03</span>
           <div>
-            <h2>Subito comprensibile</h2>
-            <p>Ogni notizia è spiegata in poche righe chiare e complete.</p>
+            <h2>Aggiornati nel tempo di un caffè</h2>
+            <p>Ogni notizia è spiegata in poche righe chiare, sintetiche, e complete.</p>
           </div>
         </article>
       </section>
