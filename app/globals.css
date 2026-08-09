@@ -214,14 +214,44 @@ h1 {
 .siracusa-signup-form .form-submit:hover { background: #303030; }
 .siracusa-signup-form .form-message {
   margin: 0 0 18px;
-  padding: 12px 14px;
+  padding: 20px;
   border: 1px solid;
   border-radius: 0;
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.siracusa-signup-form .form-message-content {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 13px;
+  align-items: start;
+  width: 100%;
+}
+.siracusa-signup-form .form-message-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: white;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1;
+}
+.siracusa-signup-form .form-message strong,
+.siracusa-signup-form .sib-form-message-panel__inner-text {
+  display: block;
+}
+.siracusa-signup-form .form-message strong {
+  margin-bottom: 3px;
+  color: var(--ink);
+  font: 700 20px/1.2 Georgia, "Times New Roman", serif;
 }
 .siracusa-signup-form .form-message-error { color: #661d1d; background: #ffeded; border-color: #ff4949; }
 .siracusa-signup-form .form-message-success { color: #085229; background: #e7faf0; border-color: #13ce66; }
+.siracusa-signup-form .form-message-error .form-message-icon { background: #9f2525; }
+.siracusa-signup-form .form-message-success .form-message-icon { background: #15803d; }
 .siracusa-signup-form .input--hidden { position: absolute; left: -5000px; }
 .siracusa-signup-form .progress-indicator__icon { width: 18px; height: 18px; margin-right: 8px; fill: currentColor; }
 

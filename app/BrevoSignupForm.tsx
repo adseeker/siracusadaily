@@ -41,15 +41,31 @@ export function BrevoSignupForm() {
 
   return (
       <div className="sib-form siracusa-signup-form">
-        <div id="error-message" className="sib-form-message-panel form-message form-message-error" aria-live="polite">
-          <span>Non siamo riusciti a completare l’iscrizione. Riprova tra poco.</span>
-        </div>
-
-        <div id="success-message" className="sib-form-message-panel form-message form-message-success" aria-live="polite">
-          <span>Iscrizione completata. Benvenuto in SiracusaDaily.</span>
-        </div>
-
         <div id="sib-form-container" className="sib-form-container">
+          <div id="error-message" className="sib-form-message-panel form-message form-message-error" role="alert">
+            <div className="form-message-content">
+              <span className="form-message-icon" aria-hidden="true">!</span>
+              <div>
+                <strong>Iscrizione non completata</strong>
+                <span className="sib-form-message-panel__inner-text">
+                  Controlla i dati inseriti e riprova.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div id="success-message" className="sib-form-message-panel form-message form-message-success" role="status" aria-live="polite">
+            <div className="form-message-content">
+              <span className="form-message-icon" aria-hidden="true">✓</span>
+              <div>
+                <strong>Iscrizione completata</strong>
+                <span className="sib-form-message-panel__inner-text">
+                  Ti abbiamo aggiunto alla lista. Riceverai la prossima edizione via email.
+                </span>
+              </div>
+            </div>
+          </div>
+
           <div id="sib-container" className="sib-container--large sib-container--vertical">
             <form id="sib-form" method="POST" action={BREVO_ACTION} data-type="subscription">
               <div className="form-field">
@@ -66,7 +82,7 @@ export function BrevoSignupForm() {
                     required
                   />
                 </div>
-                <p className="entry__specification">Dopo l’iscrizione riceverai un’email di conferma.</p>
+                <p className="entry__specification">Riceverai la newsletter al prossimo invio.</p>
               </div>
 
               <div className="form-consent">
