@@ -1,7 +1,9 @@
+import Link from "next/link";
+
 export default function PrivacyPage() {
   return (
     <main className="privacy-page">
-      <a className="wordmark" href="/">SiracusaDaily</a>
+      <Link className="wordmark" href="/">SiracusaDaily</Link>
       <p className="eyebrow">Informativa sulla privacy</p>
       <h1>Come trattiamo il tuo indirizzo email</h1>
       <p>
@@ -13,7 +15,7 @@ export default function PrivacyPage() {
         Gli indirizzi inseriti nel modulo vengono gestiti tramite Brevo per l’invio della newsletter.
         Non utilizzare ancora questo modulo per raccogliere iscrizioni pubbliche.
       </p>
-      <a className="text-link" href="/">Torna alla pagina principale</a>
+      <Link className="text-link" href="/">Torna alla pagina principale</Link>
     </main>
   );
 }
