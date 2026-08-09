@@ -1,7 +1,3 @@
-"use client";
-
-import Script from "next/script";
-
 const BREVO_ACTION =
   "https://39cb48bf.sibforms.com/serve/MUIFAOp5zLTzYBJIMKOyXmZ89fHVYVveXCqSMnlReX5WUeIX7FpPiP7Ou3EUD5vsXDGFg-cuQaPOsZtPIh7nBEPouXEAYqUhZ5X1XhnuPQt-oPATCUJokJDYJti_4FLFJEIcluIFnBp2I17sWXA0wWgdBVE2dmimANrXp3ztKWtHebpEOvlTV32NutgYpFBBjdbYFKlUIYgnucRCpg==";
 
@@ -71,8 +67,8 @@ export function BrevoSignupForm() {
         </div>
       </div>
 
-      <Script src="https://sibforms.com/forms/end-form/build/main.js" strategy="afterInteractive" />
-      <Script src="https://www.google.com/recaptcha/api.js?hl=it" strategy="afterInteractive" />
+      <script defer src="https://sibforms.com/forms/end-form/build/main.js" />
+      <script async src="https://www.google.com/recaptcha/api.js?hl=it" />
     </>
   );
 }
