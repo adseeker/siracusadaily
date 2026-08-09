@@ -69,8 +69,8 @@ export default function Home() {
             <span>Cultura</span>
             <span>Sport</span>
             <span>Eventi</span>
-            <span>Servizi</span>
-            <span>Opportunità</span>
+            <span>Servizi e utilità</span>
+            <span>Lavoro e opportunità</span>
           </div>
           <a className="secondary-cta" href="#iscriviti">Voglio riceverla</a>
         </div>
