@@ -83,34 +83,48 @@ export default function Home() {
           <div className="phone-frame">
             <div className="phone-speaker" aria-hidden="true" />
             <div className="phone-screen">
-              <div className="phone-newsletter-header">
-                <strong>SiracusaDaily</strong>
-                <span>Edizione del 09/08/2026</span>
+              <div className="phone-mail-toolbar">
+                <span className="phone-mail-icon" aria-hidden="true">✉</span>
+                <strong>Posta</strong>
+                <span className="phone-mail-menu" aria-hidden="true">•••</span>
               </div>
-              <div className="phone-newsletter-section phone-newsletter-news">
-                <div className="phone-category">Notizie e cronaca</div>
-                <article>
-                  <strong>Murro di Porco, il faro trasformato in discarica</strong>
-                  <p>Il consigliere Ansaldi denuncia rifiuti e degrado nell’area del faro.</p>
-                </article>
-                <article>
-                  <strong>Riparato il guasto idrico in Traversa Carrozziere</strong>
-                  <p>Concluso l’intervento sulla rete e ripristinato il servizio.</p>
-                </article>
+              <div className="phone-mail-heading">
+                <span className="phone-mail-avatar" aria-hidden="true">S</span>
+                <span>
+                  <strong>SiracusaDaily</strong>
+                  <small>newsletter@siracusadaily.com</small>
+                </span>
               </div>
-              <div className="phone-newsletter-section phone-newsletter-politics">
-                <div className="phone-category">Politica ed economia</div>
-                <article>
-                  <strong>Etna, la Cna propone un piano in tre livelli</strong>
-                  <p>Comiso indicato come alternativa per limitare i disagi ai voli.</p>
-                </article>
-              </div>
-              <div className="phone-newsletter-section phone-newsletter-events">
-                <div className="phone-category">Eventi</div>
-                <article>
-                  <strong>Frutta Fresca Home Edition a Palazzolo Acreide</strong>
-                  <p>La quarta edizione torna in via Soccorso 7.</p>
-                </article>
+              <div className="phone-mail-subject">Le notizie di oggi a Siracusa</div>
+              <div className="phone-email-body">
+                <div className="phone-newsletter-header">
+                  <strong>SiracusaDaily</strong>
+                </div>
+                <div className="phone-newsletter-section phone-newsletter-news">
+                  <div className="phone-category">Notizie e cronaca</div>
+                  <article>
+                    <strong>Murro di Porco, il faro trasformato in discarica</strong>
+                    <p>Il consigliere Ansaldi denuncia rifiuti e degrado nell’area del faro.</p>
+                  </article>
+                  <article>
+                    <strong>Riparato il guasto idrico in Traversa Carrozziere</strong>
+                    <p>Concluso l’intervento sulla rete e ripristinato il servizio.</p>
+                  </article>
+                </div>
+                <div className="phone-newsletter-section phone-newsletter-politics">
+                  <div className="phone-category">Politica ed economia</div>
+                  <article>
+                    <strong>Etna, la Cna propone un piano in tre livelli</strong>
+                    <p>Comiso indicato come alternativa per limitare i disagi ai voli.</p>
+                  </article>
+                </div>
+                <div className="phone-newsletter-section phone-newsletter-events">
+                  <div className="phone-category">Eventi</div>
+                  <article>
+                    <strong>Frutta Fresca Home Edition a Palazzolo Acreide</strong>
+                    <p>La quarta edizione torna in via Soccorso 7.</p>
+                  </article>
+                </div>
               </div>
             </div>
           </div>
