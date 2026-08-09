@@ -16,17 +16,11 @@ export default function Home() {
 
       <section className="conversion-hero" id="top">
         <div className="hero-copy">
-          <p className="eyebrow">Newsletter locale quotidiana</p>
           <h1>Tutto quello che conta a Siracusa. In una sola email.</h1>
           <p className="hero-description">
             Ogni giorno selezioniamo e riassumiamo le notizie più utili di Siracusa e provincia.
             Tu apri la newsletter e sai già cosa è successo.
           </p>
-          <ul className="trust-list" aria-label="Vantaggi dell’iscrizione">
-            <li>Gratis</li>
-            <li>Un solo invio al giorno</li>
-            <li>Disiscrizione con un clic</li>
-          </ul>
         </div>
 
         <div className="signup-card" id="iscriviti">
