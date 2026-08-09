@@ -477,7 +477,7 @@ footer > p { max-width: 520px; color: #d1d1d1; font-size: 14px; line-height: 1.5
     background: linear-gradient(90deg, #fff 0%, #fff 61%, var(--soft) 61%, var(--soft) 100%);
   }
   .hero-copy { margin: 0; }
-  h1 { font-size: clamp(58px, 5.8vw, 82px); }
+  h1 { font-size: clamp(58px, 5.8vw, 80px); }
   .hero-description { max-width: 650px; margin-top: 28px; font-size: 19px; }
   .trust-list { font-size: 13px; }
   .signup-card { width: 100%; margin: 0; padding: 34px 32px; box-shadow: 12px 12px 0 #111; }
