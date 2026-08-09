@@ -16,11 +16,14 @@ export default function Home() {
 
       <section className="conversion-hero" id="top">
         <div className="hero-copy">
-          <h1>Tutto quello che conta a Siracusa. In una sola email.</h1>
-          <p className="hero-description">
-            Ogni giorno selezioniamo e riassumiamo le notizie più utili di Siracusa e provincia.
-            Tu apri la newsletter e sai già cosa è successo.
-          </p>
+          <h1>Ogni giorno le notizie più rilevanti di Siracusa e provincia, in una sola email.</h1>
+          <div className="hero-description">
+            <p>
+              Selezioniamo e riassumiamo le notizie più utili per aiutarti a rimanere sempre aggiornato
+              su quello che succede nella tua città.
+            </p>
+            <p>Ricevi ogni giorno una newsletter da leggere mentre bevi il caffè, gratis.</p>
+          </div>
         </div>
 
         <div className="signup-card" id="iscriviti">

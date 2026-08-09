@@ -95,6 +95,8 @@ h1 {
   font-size: 17px;
   line-height: 1.55;
 }
+.hero-description p { margin: 0; }
+.hero-description p + p { margin-top: 12px; }
 .trust-list {
   display: flex;
   flex-wrap: wrap;
