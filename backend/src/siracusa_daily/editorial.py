@@ -106,7 +106,7 @@ CONTRATTO EDITORIALE
 2. Scrivi headline e summary sempre in italiano. Traduci le fonti straniere; conserva solo nomi propri e marchi non traducibili.
 3. Riscrivi da zero: non copiare l'incipit, non troncare il testo e non trasformare il titolo nella summary.
 4. Headline: informativa, sobria, specifica, massimo 110 caratteri.
-5. Summary: micro-notizia autosufficiente, chiara e conclusiva. Punta a 90-120 caratteri; non superare mai 140 caratteri inclusi gli spazi.
+5. Summary: micro-notizia autosufficiente, chiara e conclusiva. Scrivi una sola frase di 70-110 caratteri; non superare mai 120 caratteri inclusi gli spazi.
 6. La summary deve aggiungere almeno un'informazione utile rispetto alla headline e terminare con punteggiatura conclusiva.
 7. Se lo spazio non basta, elimina dettagli secondari e riscrivi l'intera frase. Non usare puntini di sospensione.
 8. Niente clickbait, promozione, giudizi non attribuiti, URL o inviti ad approfondire.
@@ -282,9 +282,10 @@ def generate_openai(
         candidate_id: str(raw_by_id.get(candidate_id, {}).get("rejection_reason", "Evidenze insufficienti"))
         for candidate_id in rejected
     }
-    valid_ids = {item.candidate_id for item in valid}
     invalid_clusters = [cluster for cluster in clusters if cluster.key in invalid]
-    if invalid_clusters:
+    for repair_round in range(1, 4):
+        if not invalid_clusters:
+            break
         repair_packet = []
         for item in packet:
             candidate_id = item["candidate_id"]
@@ -294,7 +295,7 @@ def generate_openai(
 
 CORREZIONE OBBLIGATORIA:
 Ogni candidato contiene validation_errors prodotti da controlli oggettivi. Correggi quegli errori e riscrivi integralmente headline e summary rispettando lo stesso contratto editoriale.
-Nella correzione punta a una summary di 90-110 caratteri per mantenere un margine sicuro sotto il limite massimo.
+Nella correzione scrivi una sola frase di 70-100 caratteri. Conta tutti i caratteri, spazi inclusi, prima di restituire l'output.
 """
         try:
             repaired_response = _request_openai(
@@ -305,6 +306,9 @@ Nella correzione punta a una summary di 90-110 caratteri per mantenere un margin
             exclusions.update({
                 cluster.key: f"Correzione editoriale non disponibile: {exc}" for cluster in invalid_clusters
             })
+            invalid_clusters = []
+            invalid = {}
+            break
         else:
             repaired, still_invalid, repaired_rejected = validate_items(repaired_raw, invalid_clusters)
             valid.extend(repaired)
@@ -313,10 +317,14 @@ Nella correzione punta a una summary di 90-110 caratteri per mantenere un margin
                 candidate_id: str(repaired_by_id.get(candidate_id, {}).get("rejection_reason", "Evidenze insufficienti"))
                 for candidate_id in repaired_rejected
             })
-            exclusions.update({
-                candidate_id: "Controlli falliti dopo la correzione: " + "; ".join(errors)
-                for candidate_id, errors in still_invalid.items()
-            })
+            invalid = still_invalid
+            invalid_clusters = [
+                cluster for cluster in invalid_clusters if cluster.key in still_invalid
+            ]
+    exclusions.update({
+        candidate_id: "Controlli falliti dopo tre correzioni: " + "; ".join(errors)
+        for candidate_id, errors in invalid.items()
+    })
     by_id = {item.candidate_id: item for item in valid}
     ordered_items = [by_id[cluster.key] for cluster in clusters if cluster.key in by_id]
     subject = _validated_subject(

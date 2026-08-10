@@ -355,11 +355,38 @@ class PipelineTests(unittest.TestCase):
         }
         with patch(
             "siracusa_daily.editorial._request_openai",
-            side_effect=[initial_response, {"items": invalid}],
+            side_effect=[initial_response, {"items": invalid}, {"items": invalid}, {"items": invalid}],
         ):
             result = generate_openai([cluster], {"SRC-A": self.source}, api_key="test")
         self.assertFalse(result.items)
         self.assertIn("story-1", result.exclusions)
+
+    def test_openai_can_recover_on_a_later_generic_correction(self) -> None:
+        article = self.article("Siracusa, nuova misura comunale")
+        cluster = StoryCluster("story-1", [article], score=0.9, representative=article)
+        invalid = [{
+            "candidate_id": "story-1", "publishable": True, "rejection_reason": "",
+            "headline": article.title, "summary": "Testo troppo lungo " * 20 + ".",
+            "section": "Politica ed economia", "subject_topic": "la nuova misura comunale",
+        }]
+        repaired = [{
+            "candidate_id": "story-1", "publishable": True, "rejection_reason": "",
+            "headline": article.title,
+            "summary": "Il Comune introduce una nuova misura destinata alla città.",
+            "section": "Politica ed economia", "subject_topic": "la nuova misura comunale",
+        }]
+        initial_response = {
+            "subject": "La nuova misura comunale a Siracusa",
+            "subject_candidate_ids": ["story-1"], "items": invalid,
+        }
+        with patch(
+            "siracusa_daily.editorial._request_openai",
+            side_effect=[initial_response, {"items": invalid}, {"items": repaired}],
+        ) as request:
+            result = generate_openai([cluster], {"SRC-A": self.source}, api_key="test")
+        self.assertEqual(request.call_count, 3)
+        self.assertEqual(len(result.items), 1)
+        self.assertFalse(result.exclusions)
 
     def test_repair_api_failure_preserves_batch_completion(self) -> None:
         article = self.article("Siracusa, nuova misura comunale")
