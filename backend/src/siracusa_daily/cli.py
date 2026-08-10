@@ -156,23 +156,24 @@ def main() -> None:
         return
     if args.command == "run" and args.skip_existing_brevo_date:
         edition_date = args.date or date.today()
-        connection = connect(args.database)
-        try:
-            existing = get_brevo_campaign_for_edition(connection, edition_date.isoformat())
-        finally:
-            connection.close()
-        if existing is not None:
-            print(
-                f"Esecuzione ignorata: l’edizione del {edition_date.isoformat()} "
-                f"ha già la campagna Brevo #{existing['brevo_campaign_id']}"
-            )
-            return
         if args.brevo_draft:
             existing_remote = _remote_campaign_or_exit(edition_date)
             if existing_remote is not None:
                 print(
                     f"Esecuzione ignorata: l’edizione del {edition_date.isoformat()} esiste già "
                     f"su Brevo come campagna #{existing_remote.campaign_id} ({existing_remote.status})"
+                )
+                return
+        else:
+            connection = connect(args.database)
+            try:
+                existing = get_brevo_campaign_for_edition(connection, edition_date.isoformat())
+            finally:
+                connection.close()
+            if existing is not None:
+                print(
+                    f"Esecuzione ignorata: l’edizione del {edition_date.isoformat()} "
+                    f"ha già la campagna Brevo #{existing['brevo_campaign_id']}"
                 )
                 return
     if args.command in {"ingest", "run"}:
