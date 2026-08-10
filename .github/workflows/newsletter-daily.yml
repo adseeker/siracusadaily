@@ -118,7 +118,7 @@ jobs:
 
       - name: Conserva HTML e log del run
         if: always() && (github.event_name == 'schedule' || inputs.mode == 'full')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: newsletter-${{ github.run_id }}
           path: |
