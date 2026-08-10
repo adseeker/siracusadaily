@@ -51,3 +51,7 @@ yarn-error.log*
 *.db
 *.db-shm
 *.db-wal
+
+# Local Netlify folder
+.netlify
+deno.lock

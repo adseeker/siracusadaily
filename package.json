@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --ignore-pattern .next --ignore-pattern out"
+    "lint": "eslint . --ignore-pattern .next --ignore-pattern out --ignore-pattern .netlify"
   },
   "dependencies": {
     "next": "16.3.0",
