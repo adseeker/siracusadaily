@@ -172,13 +172,13 @@ async function openAIMetrics(days) {
   const start = now - days * 86400;
   const projectId = process.env.OPENAI_PROJECT_ID || "";
   const projectFilter = projectId ? [projectId] : undefined;
-  const [usageBuckets, costBuckets] = await Promise.all([
+  const [usageBuckets, costBuckets, project] = await Promise.all([
     paginatedOpenAI("/organization/usage/completions", {
       start_time: start,
       end_time: now,
       bucket_width: "1d",
       limit: Math.min(days, 31),
-      group_by: ["model"],
+      group_by: ["project_id", "model"],
       project_ids: projectFilter,
     }, apiKey),
     paginatedOpenAI("/organization/costs", {
@@ -186,9 +186,14 @@ async function openAIMetrics(days) {
       end_time: now,
       bucket_width: "1d",
       limit: Math.min(days, 180),
-      group_by: ["line_item"],
+      group_by: ["project_id", "line_item"],
       project_ids: projectFilter,
     }, apiKey),
+    projectId
+      ? fetchJson(`${OPENAI_API}/organization/projects/${encodeURIComponent(projectId)}`, {
+        headers: { authorization: `Bearer ${apiKey}` },
+      })
+      : Promise.resolve(null),
   ]);
 
   const totals = { requests: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, costUsd: 0 };
@@ -197,6 +202,7 @@ async function openAIMetrics(days) {
     const date = new Date(number(bucket.start_time) * 1000).toISOString().slice(0, 10);
     const daily = dailyMap.get(date) || { date, requests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 };
     for (const item of bucket.results || []) {
+      if (projectId && item.project_id !== projectId) continue;
       totals.requests += number(item.num_model_requests);
       totals.inputTokens += number(item.input_tokens);
       totals.cachedInputTokens += number(item.input_cached_tokens);
@@ -211,6 +217,7 @@ async function openAIMetrics(days) {
     const date = new Date(number(bucket.start_time) * 1000).toISOString().slice(0, 10);
     const daily = dailyMap.get(date) || { date, requests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 };
     for (const item of bucket.results || []) {
+      if (projectId && item.project_id !== projectId) continue;
       const amount = number(item.amount?.value);
       totals.costUsd += amount;
       daily.costUsd += amount;
@@ -219,7 +226,7 @@ async function openAIMetrics(days) {
   }
   return {
     ...totals,
-    scope: projectId ? "Progetto SiracusaDaily" : "Intera organizzazione OpenAI",
+    scope: projectId ? `Progetto ${project?.name || projectId}` : "Intera organizzazione OpenAI",
     daily: [...dailyMap.values()].sort((a, b) => a.date.localeCompare(b.date)),
   };
 }
