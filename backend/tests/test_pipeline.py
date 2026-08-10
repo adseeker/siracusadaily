@@ -28,8 +28,10 @@ from siracusa_daily.database import (
 from siracusa_daily.categories import classify_article
 from siracusa_daily.editorial import (
     EditorialError,
+    EditorialItem,
     _numbers,
     _request_openai,
+    _validated_subject,
     evidence_packet,
     generate_editorial,
     generate_openai,
@@ -339,6 +341,69 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(result.items[0].summary, repaired[0]["summary"])
         self.assertEqual(result.subject, "La nuova misura comunale a Siracusa")
         self.assertFalse(result.exclusions)
+
+    def test_subject_rejects_a_sensitive_story_even_with_neutral_wording(self) -> None:
+        article = self.article("Incidente mortale a Carlentini")
+        article.excerpt = "Una persona ha perso la vita nello scontro avvenuto sulla strada provinciale."
+        cluster = StoryCluster("story-1", [article], score=0.9, representative=article)
+        item = EditorialItem(
+            "story-1", "Indagini dopo lo scontro", "Sono in corso gli accertamenti.",
+            "Notizie e cronaca", "Indagini in corso a Carlentini",
+        )
+        subject = _validated_subject(
+            "Indagini in corso a Carlentini", ["story-1"], [item], [cluster],
+        )
+        self.assertEqual(subject, "")
+
+    def test_writer_uses_a_safe_story_when_proposed_subject_is_sensitive(self) -> None:
+        death = self.article("Incidente mortale a Carlentini")
+        death.excerpt = "Una persona ha perso la vita nello scontro."
+        bus = self.article("Nuova linea 105 collega Ortigia")
+        bus.excerpt = "Il nuovo collegamento serve Ortigia e il centro di Siracusa."
+        clusters = [
+            StoryCluster("death", [death], score=1.0, representative=death),
+            StoryCluster("bus", [bus], score=0.9, representative=bus),
+        ]
+        response = {
+            "subject": "Incidente mortale a Carlentini; nuova linea 105 collega Ortigia",
+            "subject_candidate_ids": ["death", "bus"],
+            "items": [
+                {
+                    "candidate_id": "death", "publishable": True, "rejection_reason": "",
+                    "headline": "Incidente mortale a Carlentini",
+                    "summary": "Una persona ha perso la vita nello scontro avvenuto nel territorio di Carlentini.",
+                    "section": "Notizie e cronaca", "subject_topic": "Incidente mortale a Carlentini",
+                },
+                {
+                    "candidate_id": "bus", "publishable": True, "rejection_reason": "",
+                    "headline": "La linea 105 collega Ortigia e il centro",
+                    "summary": "Il nuovo collegamento serve Ortigia e il centro urbano di Siracusa.",
+                    "section": "Servizi e utilità", "subject_topic": "La nuova linea 105 collega Ortigia",
+                },
+            ],
+        }
+        with patch("siracusa_daily.editorial._request_openai", return_value=response):
+            result = generate_openai(clusters, {"SRC-A": self.source}, api_key="test")
+        self.assertEqual(result.subject, "La nuova linea 105 collega Ortigia")
+        self.assertEqual(len(result.items), 2)
+
+    def test_writer_returns_no_subject_when_every_story_is_sensitive(self) -> None:
+        article = self.article("Incidente mortale a Carlentini")
+        article.excerpt = "Una persona ha perso la vita nello scontro."
+        cluster = StoryCluster("death", [article], score=1.0, representative=article)
+        response = {
+            "subject": "Incidente mortale a Carlentini",
+            "subject_candidate_ids": ["death"],
+            "items": [{
+                "candidate_id": "death", "publishable": True, "rejection_reason": "",
+                "headline": "Incidente mortale a Carlentini",
+                "summary": "Una persona ha perso la vita nello scontro avvenuto nel territorio di Carlentini.",
+                "section": "Notizie e cronaca", "subject_topic": "Incidente mortale a Carlentini",
+            }],
+        }
+        with patch("siracusa_daily.editorial._request_openai", return_value=response):
+            result = generate_openai([cluster], {"SRC-A": self.source}, api_key="test")
+        self.assertEqual(result.subject, "")
 
     def test_openai_excludes_item_that_fails_repair(self) -> None:
         article = self.article("Siracusa, nuova misura comunale")

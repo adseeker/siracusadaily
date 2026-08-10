@@ -19,6 +19,11 @@ Il workflow:
 - apre una issue GitHub se fallisce;
 - crea soltanto una bozza Brevo, senza inviarla.
 
+L'oggetto non può essere guidato da decessi, incidenti gravi, violenza, vittime,
+cronaca nera o altre formulazioni emotivamente forti. Queste notizie possono
+restare nel corpo dell'edizione; un controllo deterministico obbliga l'oggetto a
+usare un contenuto diverso e neutro, oppure blocca la creazione della bozza.
+
 I secret richiesti nel repository sono `OPENAI_API_KEY` e `BREVO_API_KEY`.
 Dal pannello Actions si può lanciare `preflight`, che controlla l'infrastruttura
 senza chiamare OpenAI né creare una bozza, oppure `full` per un run completo.

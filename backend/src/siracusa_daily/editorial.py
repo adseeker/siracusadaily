@@ -13,9 +13,27 @@ from datetime import timezone
 
 from .models import Source, StoryCluster
 from .categories import CATEGORY_ORDER
+from .text import normalize_text
 
 DEFAULT_MODEL = "gpt-5-mini"
 SECTIONS = set(CATEGORY_ORDER)
+
+# This is a publication gate, not a classifier for the newsletter body. A story
+# matching these signals may still be published, but can never lead the email.
+SENSITIVE_SUBJECT_TERMS = {
+    "abuso", "abusi", "accoltellamento", "aggressione", "aggressioni",
+    "allarme", "assassinio", "cadavere", "catastrofe", "caos", "decesso",
+    "deceduta", "deceduto", "disastro", "dramma", "emergenza", "femminicidio",
+    "ferita", "ferite", "feriti", "ferito", "incidente", "incidenti", "lutto",
+    "mafia", "maltrattamenti", "mortale", "mortali", "morta", "morte", "morti",
+    "morto", "omicidio", "orrore", "sangue", "scomparsa", "scomparso",
+    "sparatoria", "strage", "stupro", "suicidio", "tragedia", "tragico",
+    "violenza", "violenze", "vittima", "vittime",
+}
+SENSITIVE_SUBJECT_PHRASES = {
+    "ferite gravi", "ferito grave", "in fin di vita", "perde la vita",
+    "perso la vita", "perdita della vita", "violenza sessuale",
+}
 
 
 @dataclass(frozen=True)
@@ -122,6 +140,8 @@ OGGETTO DELLA NEWSLETTER
 - Compila subject_candidate_ids con gli ID, da uno a tre, che supportano integralmente quanto scritto nell'oggetto.
 - Scrivi in italiano, tra 20 e 90 caratteri. Niente marchio SiracusaDaily, data dell'edizione, formule generiche come "Siracusa oggi", clickbait, puntini di sospensione o em dash.
 - L'oggetto deve avere senso compiuto e non promettere informazioni che la newsletter non contiene.
+- Non usare mai come notizia guida, non citare e non includere nei subject_candidate_ids fatti che riguardano decessi, vittime, incidenti gravi, violenza, abusi, cronaca nera, catastrofi o dolore personale. Questi contenuti possono restare nel corpo della newsletter, ma non devono comparire nell'oggetto neppure con eufemismi.
+- Evita formulazioni emotivamente forti, allarmistiche o sensazionalistiche. Per l'oggetto preferisci una notizia di interesse civico e tono neutro: servizi, istituzioni, economia, cultura, sport, eventi o opportunità.
 
 CATEGORIA
 Assegna semanticamente una sola section tra quelle consentite dallo schema:
@@ -330,9 +350,39 @@ Nella correzione scrivi una sola frase di 70-100 caratteri. Conta tutti i caratt
     subject = _validated_subject(
         raw_response.get("subject"), raw_response.get("subject_candidate_ids"), ordered_items, clusters,
     )
-    if not subject and ordered_items:
-        subject = ordered_items[0].subject_topic
+    if not subject:
+        subject = _safe_fallback_subject(ordered_items, clusters)
     return EditorialResult(items=ordered_items, exclusions=exclusions, subject=subject)
+
+
+def _has_sensitive_subject_language(value: str) -> bool:
+    normalized = normalize_text(value)
+    words = set(normalized.split())
+    return bool(words & SENSITIVE_SUBJECT_TERMS) or any(
+        phrase in normalized for phrase in SENSITIVE_SUBJECT_PHRASES
+    )
+
+
+def _sensitive_story(cluster: StoryCluster) -> bool:
+    article = cluster.representative
+    return _has_sensitive_subject_language(
+        f"{article.title} {article.excerpt} {article.metadata}"
+    )
+
+
+def _safe_fallback_subject(items: list[EditorialItem], clusters: list[StoryCluster]) -> str:
+    cluster_by_id = {cluster.key: cluster for cluster in clusters}
+    for item in items:
+        cluster = cluster_by_id.get(item.candidate_id)
+        topic = " ".join(item.subject_topic.split()).strip(" .")
+        if (
+            cluster is None or _sensitive_story(cluster)
+            or _has_sensitive_subject_language(topic)
+            or not 20 <= len(topic) <= 80
+        ):
+            continue
+        return topic[0].upper() + topic[1:]
+    return ""
 
 
 def _validated_subject(
@@ -357,6 +407,10 @@ def _validated_subject(
     if any(candidate_id not in valid_ids for candidate_id in candidate_ids):
         return ""
     cluster_by_id = {cluster.key: cluster for cluster in clusters}
+    if any(_sensitive_story(cluster_by_id[candidate_id]) for candidate_id in candidate_ids):
+        return ""
+    if _has_sensitive_subject_language(subject):
+        return ""
     evidence = " ".join(
         f"{cluster_by_id[candidate_id].representative.title} "
         f"{cluster_by_id[candidate_id].representative.excerpt} "
