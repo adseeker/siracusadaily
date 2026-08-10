@@ -23,6 +23,11 @@ I secret richiesti nel repository sono `OPENAI_API_KEY` e `BREVO_API_KEY`.
 Dal pannello Actions si può lanciare `preflight`, che controlla l'infrastruttura
 senza chiamare OpenAI né creare una bozza, oppure `full` per un run completo.
 
+Brevo deve accettare chiamate API dai runner GitHub, i cui indirizzi IP cambiano.
+In `Settings > Security > Authorized IPs` il blocco degli IP sconosciuti va quindi
+disattivato per le sole **API keys**. Il blocco SMTP può restare attivo: questo
+workflow non usa SMTP.
+
 ## Prima configurazione
 
 ```bash

@@ -43,16 +43,16 @@ jobs:
 
     steps:
       - name: Scarica il motore
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Scarica lo storico privato
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: automation-state
           path: .automation-state
 
       - name: Prepara Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
