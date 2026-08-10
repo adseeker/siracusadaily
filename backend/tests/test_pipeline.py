@@ -284,7 +284,28 @@ class PipelineTests(unittest.TestCase):
         }]
         valid, invalid, _ = validate_items(raw, [cluster])
         self.assertFalse(valid)
-        self.assertIn("massimo 140", " ".join(invalid["story-1"]))
+        self.assertIn("massimo 240", " ".join(invalid["story-1"]))
+
+    def test_editorial_accepts_summary_longer_than_old_tweet_limit(self) -> None:
+        article = self.article("Siracusa, apre un nuovo servizio")
+        cluster = StoryCluster("story-1", [article], score=0.9, representative=article)
+        summary = (
+            "Il servizio sarà disponibile nel centro cittadino e offrirà ai residenti "
+            "un nuovo punto di accesso alle prestazioni comunali, con indicazioni operative "
+            "pubblicate attraverso i canali istituzionali."
+        )
+        raw = [{
+            "candidate_id": "story-1", "publishable": True, "rejection_reason": "",
+            "headline": "Apre un nuovo servizio a Siracusa",
+            "summary": summary,
+            "section": "Notizie e cronaca",
+            "subject_topic": "apre un nuovo servizio",
+        }]
+        valid, invalid, _ = validate_items(raw, [cluster])
+        self.assertGreater(len(summary), 140)
+        self.assertLessEqual(len(summary), 240)
+        self.assertEqual(len(valid), 1)
+        self.assertFalse(invalid)
 
     def test_editorial_rejects_em_dash(self) -> None:
         article = self.article("Siracusa, apre un nuovo servizio")
@@ -524,7 +545,7 @@ class PipelineTests(unittest.TestCase):
         self.assertNotIn("Pubblicato", output)
         self.assertNotIn("Bozza generata automaticamente", output)
         description = output.split("\n")[8]
-        self.assertLessEqual(len(description), 140)
+        self.assertLessEqual(len(description), 240)
 
     def test_html_email_has_no_publication_date_or_automatic_footer(self) -> None:
         article = self.article("Siracusa, una notizia locale")

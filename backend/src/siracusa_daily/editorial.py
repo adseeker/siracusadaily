@@ -124,9 +124,9 @@ CONTRATTO EDITORIALE
 2. Scrivi headline e summary sempre in italiano. Traduci le fonti straniere; conserva solo nomi propri e marchi non traducibili.
 3. Riscrivi da zero: non copiare l'incipit, non troncare il testo e non trasformare il titolo nella summary.
 4. Headline: informativa, sobria, specifica, massimo 110 caratteri.
-5. Summary: micro-notizia autosufficiente, chiara e conclusiva. Scrivi una sola frase di 70-110 caratteri; non superare mai 120 caratteri inclusi gli spazi.
-6. La summary deve aggiungere almeno un'informazione utile rispetto alla headline e terminare con punteggiatura conclusiva.
-7. Se lo spazio non basta, elimina dettagli secondari e riscrivi l'intera frase. Non usare puntini di sospensione.
+5. Summary: breve notizia autosufficiente, chiara e conclusiva. Scrivi una o due frasi, idealmente tra 170 e 230 caratteri; non superare mai 240 caratteri inclusi gli spazi.
+6. La summary non deve ripetere o parafrasare la headline. Deve svilupparla con informazioni concrete presenti nelle evidenze, come contesto, conseguenze, soggetti coinvolti o dettagli operativi, e terminare con punteggiatura conclusiva.
+7. Se lo spazio non basta, elimina dettagli secondari e riscrivi l'intero testo. Non usare puntini di sospensione.
 8. Niente clickbait, promozione, giudizi non attribuiti, URL o inviti ad approfondire.
 9. Per eventi e opportunità conserva, quando disponibili, natura dell'iniziativa, luogo e data o scadenza.
 10. Se le evidenze non bastano per una micro-notizia informativa e completa, imposta publishable=false e spiega brevemente il motivo in rejection_reason. Non produrre testo generico per riempire lo spazio.
@@ -185,7 +185,7 @@ def _complete_fallback_summary(cluster: StoryCluster) -> str:
     complete = ""
     for sentence in sentences:
         candidate = f"{complete} {sentence.strip()}".strip()
-        if len(candidate) > 140:
+        if len(candidate) > 240:
             break
         complete = candidate
     if complete:
@@ -225,8 +225,8 @@ def _validation_errors(item: dict | None, cluster: StoryCluster) -> list[str]:
         errors.append(f"headline di {len(headline)} caratteri; massimo 110")
     if not summary:
         errors.append("summary vuota")
-    elif len(summary) > 140:
-        errors.append(f"summary di {len(summary)} caratteri; massimo 140")
+    elif len(summary) > 240:
+        errors.append(f"summary di {len(summary)} caratteri; massimo 240")
     elif not summary.endswith((".", "!", "?")):
         errors.append("summary senza punteggiatura conclusiva")
     if section not in SECTIONS:
@@ -315,7 +315,7 @@ def generate_openai(
 
 CORREZIONE OBBLIGATORIA:
 Ogni candidato contiene validation_errors prodotti da controlli oggettivi. Correggi quegli errori e riscrivi integralmente headline e summary rispettando lo stesso contratto editoriale.
-Nella correzione scrivi una sola frase di 70-100 caratteri. Conta tutti i caratteri, spazi inclusi, prima di restituire l'output.
+Nella correzione scrivi una o due frasi, idealmente tra 170 e 230 caratteri e mai oltre 240. La summary deve aggiungere informazioni concrete rispetto alla headline. Conta tutti i caratteri, spazi inclusi, prima di restituire l'output.
 """
         try:
             repaired_response = _request_openai(
