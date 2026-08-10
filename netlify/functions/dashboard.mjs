@@ -179,7 +179,6 @@ async function openAIMetrics(days) {
       bucket_width: "1d",
       limit: Math.min(days, 31),
       group_by: ["model"],
-      models: ["gpt-5-mini"],
       project_ids: projectFilter,
     }, apiKey),
     paginatedOpenAI("/organization/costs", {
