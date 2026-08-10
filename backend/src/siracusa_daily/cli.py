@@ -1,16 +1,33 @@
 from __future__ import annotations
 
 import argparse
+import os
 from datetime import date
 from pathlib import Path
 
-from .brevo import BrevoError, DEFAULT_LIST_NAME, create_campaign_draft
+from .brevo import (
+    BrevoError,
+    DEFAULT_LIST_NAME,
+    create_campaign_draft,
+    find_campaign_for_edition,
+    find_list,
+)
 from .database import connect, get_brevo_campaign_for_edition, get_newsletter_run, record_brevo_draft
 from .pipeline import build_newsletter, ingest
 from .editorial import DEFAULT_MODEL, EditorialError
 from .mailer import MailerError, send_html
 
 PROJECT = Path(__file__).resolve().parents[2]
+
+
+def _remote_campaign_or_exit(edition_date: date):
+    try:
+        return find_campaign_for_edition(edition_date)
+    except BrevoError as exc:
+        raise SystemExit(
+            f"Controllo anti-duplicato Brevo non disponibile: {exc}. "
+            "Esecuzione interrotta senza creare campagne."
+        ) from exc
 
 
 def parser() -> argparse.ArgumentParser:
@@ -20,6 +37,9 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--database", type=Path, default=PROJECT / "data/siracusa_daily.db")
     commands = root.add_subparsers(dest="command", required=True)
     commands.add_parser("init")
+    preflight = commands.add_parser("preflight")
+    preflight.add_argument("--date", type=date.fromisoformat)
+    preflight.add_argument("--brevo-list", default=DEFAULT_LIST_NAME)
     retry_draft = commands.add_parser("brevo-draft")
     retry_draft.add_argument("--run-id", type=int, required=True)
     retry_draft.add_argument("--input", type=Path)
@@ -70,6 +90,27 @@ def main() -> None:
         connect(args.database).close()
         print(f"Database inizializzato: {args.database}")
         return
+    if args.command == "preflight":
+        if not os.getenv("OPENAI_API_KEY"):
+            raise SystemExit("Preflight fallito: OPENAI_API_KEY non configurata")
+        connection = connect(args.database)
+        connection.close()
+        try:
+            target = find_list(args.brevo_list)
+        except BrevoError as exc:
+            raise SystemExit(f"Preflight fallito: {exc}") from exc
+        edition_date = args.date or date.today()
+        existing = _remote_campaign_or_exit(edition_date)
+        campaign = (
+            f"campagna #{existing.campaign_id} ({existing.status}) già presente"
+            if existing is not None else "nessuna campagna ancora presente"
+        )
+        print(
+            f"Preflight riuscito: database disponibile; lista Brevo '{target.name}' "
+            f"(ID {target.list_id}); {campaign} per {edition_date.isoformat()}; "
+            "OPENAI_API_KEY configurata."
+        )
+        return
     if args.command == "brevo-draft":
         connection = connect(args.database)
         try:
@@ -87,6 +128,13 @@ def main() -> None:
             if output.suffix.lower() != ".html" or not output.is_file():
                 raise SystemExit(f"HTML della newsletter non trovato: {output}")
             edition_date = date.fromisoformat(run["edition_date"])
+            existing_remote = _remote_campaign_or_exit(edition_date)
+            if existing_remote is not None:
+                print(
+                    f"Bozza non creata: l’edizione del {edition_date.isoformat()} esiste già "
+                    f"su Brevo come campagna #{existing_remote.campaign_id} ({existing_remote.status})"
+                )
+                return
             subject = args.subject or run["email_subject"]
             if not subject:
                 raise SystemExit("Oggetto non disponibile per questa newsletter; usa --subject")
@@ -119,6 +167,14 @@ def main() -> None:
                 f"ha già la campagna Brevo #{existing['brevo_campaign_id']}"
             )
             return
+        if args.brevo_draft:
+            existing_remote = _remote_campaign_or_exit(edition_date)
+            if existing_remote is not None:
+                print(
+                    f"Esecuzione ignorata: l’edizione del {edition_date.isoformat()} esiste già "
+                    f"su Brevo come campagna #{existing_remote.campaign_id} ({existing_remote.status})"
+                )
+                return
     if args.command in {"ingest", "run"}:
         report = ingest(
             args.source_map, args.endpoint_map, args.database, args.endpoint_limit, args.item_limit,
@@ -151,6 +207,15 @@ def main() -> None:
         subject = args.subject or generated_subject
         if not subject:
             raise SystemExit("Bozza Brevo annullata: il writer non ha prodotto un oggetto valido")
+        # A second authoritative check closes the window between the initial
+        # preflight and campaign creation (manual retriggers, retries, stale state).
+        existing_remote = _remote_campaign_or_exit(edition_date)
+        if existing_remote is not None:
+            print(
+                f"Bozza non creata: l’edizione del {edition_date.isoformat()} esiste già "
+                f"su Brevo come campagna #{existing_remote.campaign_id} ({existing_remote.status})"
+            )
+            return
         try:
             draft = create_campaign_draft(
                 args.output.read_text(encoding="utf-8"), edition_date, subject,

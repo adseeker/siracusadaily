@@ -60,9 +60,18 @@ def _article_quality(article: Article, source: Source, now: datetime) -> float:
 def select_stories(
     articles: list[Article], sources: dict[str, Source], last_used: dict[str, int], limit: int = 8,
     max_per_source: int = 3, now: datetime | None = None,
+    excluded_article_ids: set[int] | None = None,
 ) -> list[StoryCluster]:
     now = now or datetime.now(timezone.utc)
     clusters = cluster_articles(articles)
+    if excluded_article_ids:
+        # The previously used URL remains inside the lookback window and acts as
+        # an anchor: its whole semantic cluster is removed, including duplicates
+        # published by other sources on a later day.
+        clusters = [
+            cluster for cluster in clusters
+            if not any(article.article_id in excluded_article_ids for article in cluster.articles)
+        ]
     for cluster in clusters:
         scored = []
         for article in cluster.articles:

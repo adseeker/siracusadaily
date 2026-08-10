@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import socket
+import time
 import urllib.error
 import urllib.request
 from collections import Counter
@@ -377,13 +379,27 @@ def _request_openai(
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            result = json.loads(response.read())
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:1000]
-        raise EditorialError(f"OpenAI API HTTP {exc.code}: {detail}") from exc
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise EditorialError(f"OpenAI API: {exc}") from exc
+        max_attempts = int(os.getenv("SIRACUSA_OPENAI_ATTEMPTS", "3"))
+    except ValueError as exc:
+        raise EditorialError("SIRACUSA_OPENAI_ATTEMPTS deve essere un numero intero") from exc
+    if not 1 <= max_attempts <= 5:
+        raise EditorialError("SIRACUSA_OPENAI_ATTEMPTS deve essere compreso tra 1 e 5")
+
+    result: dict = {}
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                result = json.loads(response.read())
+            break
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:1000]
+            retryable = exc.code in {408, 409, 429} or 500 <= exc.code <= 599
+            if not retryable or attempt == max_attempts:
+                raise EditorialError(f"OpenAI API HTTP {exc.code}: {detail}") from exc
+        except (urllib.error.URLError, TimeoutError, socket.timeout, json.JSONDecodeError) as exc:
+            if attempt == max_attempts:
+                raise EditorialError(f"OpenAI API: {exc}") from exc
+        time.sleep(min(10, 2 ** attempt))
     try:
         parsed = json.loads(_response_text(result))
     except json.JSONDecodeError as exc:

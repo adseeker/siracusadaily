@@ -4,21 +4,37 @@ import os
 import sqlite3
 import tempfile
 import unittest
+import urllib.error
 from unittest.mock import patch
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from siracusa_daily.brevo import BrevoError, _api_key, create_campaign_draft, find_list
+from siracusa_daily.brevo import (
+    BrevoError,
+    _api_key,
+    create_campaign_draft,
+    find_campaign_for_edition,
+    find_list,
+)
 from siracusa_daily.database import (
     connect,
     get_brevo_campaign_for_edition,
+    previously_drafted_article_ids,
     record_brevo_draft,
     record_newsletter,
     upsert_article,
 )
 from siracusa_daily.categories import classify_article
-from siracusa_daily.editorial import EditorialError, _numbers, evidence_packet, generate_editorial, generate_openai, validate_items
+from siracusa_daily.editorial import (
+    EditorialError,
+    _numbers,
+    _request_openai,
+    evidence_packet,
+    generate_editorial,
+    generate_openai,
+    validate_items,
+)
 from siracusa_daily.geography import evaluate_locality
 from siracusa_daily.mailer import MailerError, send_html
 from siracusa_daily.models import Article, Source, StoryCluster
@@ -135,6 +151,23 @@ class PipelineTests(unittest.TestCase):
         self.assertNotIn("tag", payload)
         self.assertNotIn("previewText", payload)
 
+    def test_brevo_finds_existing_campaign_for_edition(self) -> None:
+        response = {"campaigns": [
+            {"id": 90, "name": "Altra campagna", "status": "draft"},
+            {"id": 99, "name": "SiracusaDaily | 10/08/2026 | run 8", "status": "draft"},
+        ]}
+        with patch("siracusa_daily.brevo._request", return_value=response) as request:
+            result = find_campaign_for_edition(datetime(2026, 8, 10).date(), api_key="test")
+        self.assertIsNotNone(result)
+        self.assertEqual(result.campaign_id, 99)
+        self.assertEqual(result.status, "draft")
+        self.assertEqual(request.call_args.kwargs["query"]["type"], "classic")
+
+    def test_brevo_returns_none_when_edition_does_not_exist(self) -> None:
+        with patch("siracusa_daily.brevo._request", return_value={"campaigns": []}):
+            result = find_campaign_for_edition(datetime(2026, 8, 10).date(), api_key="test")
+        self.assertIsNone(result)
+
     def test_brevo_draft_is_recorded_on_newsletter_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             connection = connect(Path(directory) / "test.db")
@@ -170,6 +203,47 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(row["run_id"], run_id)
             self.assertEqual(row["brevo_campaign_id"], 99)
             connection.close()
+
+    def test_only_earlier_successful_drafts_enter_story_history(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            connection = connect(Path(directory) / "test.db")
+            old = self.article("Siracusa notizia già usata")
+            old.article_id = upsert_article(connection, old)
+            drafted_run = record_newsletter(
+                connection, "2026-08-09", "old.html", [(old, "old", 1.0)],
+                writer_name="openai", model="gpt-5-mini",
+            )
+            record_brevo_draft(connection, drafted_run, 99, 11)
+
+            same_day = self.article("Siracusa notizia dello stesso giorno")
+            same_day.article_id = upsert_article(connection, same_day)
+            record_newsletter(
+                connection, "2026-08-10", "retry.html", [(same_day, "retry", 1.0)],
+                writer_name="openai", model="gpt-5-mini",
+            )
+
+            result = previously_drafted_article_ids(connection, "2026-08-10")
+            self.assertEqual(result, {old.article_id})
+            connection.close()
+
+    def test_previous_story_removes_cross_source_duplicates(self) -> None:
+        sources = {
+            "SRC-A": self.source,
+            "SRC-B": Source("SRC-B", "B", "Testata locale", "high", "high", "Siracusa"),
+        }
+        previous = self.article("Siracusa, chiusa via Roma per lavori", "SRC-A")
+        duplicate = self.article("Chiusa via Roma a Siracusa per i lavori", "SRC-B")
+        unrelated = self.article("Siracusa inaugura una nuova biblioteca", "SRC-B")
+        previous.article_id = 1
+        duplicate.article_id = 2
+        unrelated.article_id = 3
+        for article in (previous, duplicate, unrelated):
+            article.local_score = 0.9
+        selected = select_stories(
+            [previous, duplicate, unrelated], sources, {}, limit=3,
+            excluded_article_ids={previous.article_id},
+        )
+        self.assertEqual([cluster.representative.article_id for cluster in selected], [3])
 
     def test_editorial_evidence_keeps_source_provenance(self) -> None:
         article = self.article("Siracusa, apre un nuovo servizio")
@@ -324,6 +398,30 @@ class PipelineTests(unittest.TestCase):
         with patch.dict("os.environ", {"SIRACUSA_OPENAI_TIMEOUT": "non-valido"}):
             with self.assertRaises(EditorialError):
                 generate_openai([cluster], {"SRC-A": self.source}, api_key="test")
+
+    def test_openai_retries_a_transient_network_error(self) -> None:
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            def read(self):
+                return b'{"output_text":"{\\"items\\":[]}"}'
+
+        with (
+            patch.dict(os.environ, {"SIRACUSA_OPENAI_ATTEMPTS": "3"}),
+            patch(
+                "siracusa_daily.editorial.urllib.request.urlopen",
+                side_effect=[urllib.error.URLError("temporary"), Response()],
+            ) as urlopen,
+            patch("siracusa_daily.editorial.time.sleep") as sleep,
+        ):
+            result = _request_openai([], "gpt-5-mini", "test", "instructions", 30, include_subject=False)
+        self.assertEqual(result, {"items": []})
+        self.assertEqual(urlopen.call_count, 2)
+        sleep.assert_called_once()
 
     def test_writer_hides_publication_date_and_limits_summary(self) -> None:
         article = self.article("Siracusa, una notizia locale")

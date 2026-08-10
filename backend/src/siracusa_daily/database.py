@@ -133,6 +133,20 @@ def last_source_positions(connection: sqlite3.Connection) -> dict[str, int]:
     return {row["source_id"]: int(row["last_run"]) for row in rows}
 
 
+def previously_drafted_article_ids(
+    connection: sqlite3.Connection, before_edition: str,
+) -> set[int]:
+    """Articles already included in an earlier successfully created Brevo draft."""
+    rows = connection.execute(
+        """SELECT DISTINCT n.article_id
+           FROM newsletter_items n
+           JOIN newsletter_runs r ON r.run_id = n.run_id
+           WHERE r.edition_date < ? AND r.brevo_campaign_id IS NOT NULL""",
+        (before_edition,),
+    ).fetchall()
+    return {int(row["article_id"]) for row in rows}
+
+
 def record_newsletter(
     connection: sqlite3.Connection, edition_date: str, output_path: str,
     items: list[tuple[Article, str, float]], writer_name: str = "template", model: str = "",

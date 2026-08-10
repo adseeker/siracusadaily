@@ -1,6 +1,27 @@
 # Motore SiracusaDaily
 
-Pipeline locale per retrieval, classificazione, deduplicazione, selezione, scrittura e creazione della bozza Brevo.
+Pipeline per retrieval, classificazione, deduplicazione, selezione, scrittura e creazione della bozza Brevo.
+
+## Automazione GitHub
+
+Il workflow `.github/workflows/newsletter-daily.yml` parte ogni giorno alle 06:30,
+ora `Europe/Rome`. I passaggi delle 07:00 e 07:30 sono recuperi automatici: se la
+campagna del giorno esiste già su Brevo, terminano prima del retrieval e non usano
+OpenAI.
+
+Il workflow:
+
+- esegue tutti i test prima del run;
+- verifica direttamente su Brevo che l'edizione non esista già;
+- conserva il database nel branch privato `automation-state`;
+- ritenta le chiamate OpenAI in caso di errori temporanei;
+- salva HTML e log per 7 giorni;
+- apre una issue GitHub se fallisce;
+- crea soltanto una bozza Brevo, senza inviarla.
+
+I secret richiesti nel repository sono `OPENAI_API_KEY` e `BREVO_API_KEY`.
+Dal pannello Actions si può lanciare `preflight`, che controlla l'infrastruttura
+senza chiamare OpenAI né creare una bozza, oppure `full` per un run completo.
 
 ## Prima configurazione
 
@@ -27,9 +48,10 @@ Il run:
 - non crea una seconda campagna Brevo per la stessa data;
 - blocca la bozza se vengono selezionate meno di 6 notizie.
 
-## Pianificazione macOS
+## Pianificazione macOS, solo emergenza
 
-Il LaunchAgent incluso è configurato per le 09:30, ora locale. La copia operativa
+Il LaunchAgent incluso è una procedura di riserva e non va lasciato attivo insieme
+a GitHub Actions. La copia operativa
 va installata in `~/Library/Application Support/SiracusaDaily`, così il processo in
 background non dipende dai permessi macOS della cartella `Documents`. Va attivato
 solo dopo aver completato `.env.local` ed eseguito con successo almeno un run manuale.

@@ -6,7 +6,14 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from .config import load_endpoints, load_sources
-from .database import connect, last_source_positions, recent_articles, record_newsletter, upsert_article
+from .database import (
+    connect,
+    last_source_positions,
+    previously_drafted_article_ids,
+    recent_articles,
+    record_newsletter,
+    upsert_article,
+)
 from .geography import evaluate_locality
 from .retrieval import RetrievalError, retrieve_html, retrieve_rss
 from .selection import select_stories
@@ -69,7 +76,15 @@ def build_newsletter(
     connection = connect(database)
     try:
         articles = recent_articles(connection, datetime.now(timezone.utc) - timedelta(hours=lookback_hours))
-        clusters = select_stories(articles, sources, last_source_positions(connection), limit=limit)
+        clusters = select_stories(
+            articles,
+            sources,
+            last_source_positions(connection),
+            limit=limit,
+            excluded_article_ids=previously_drafted_article_ids(
+                connection, edition_date.isoformat(),
+            ),
+        )
         selected_clusters = list(clusters)
         editorial_items, writer_used, exclusions, email_subject = generate_editorial(
             clusters, sources, mode=writer_mode, model=model,

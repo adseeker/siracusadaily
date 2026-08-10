@@ -1,0 +1,141 @@
+name: Newsletter quotidiana
+
+on:
+  schedule:
+    - cron: "30 6 * * *"
+      timezone: "Europe/Rome"
+    - cron: "0 7 * * *"
+      timezone: "Europe/Rome"
+    - cron: "30 7 * * *"
+      timezone: "Europe/Rome"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Preflight non crea bozze; full esegue l'intera pipeline"
+        required: true
+        default: "preflight"
+        type: choice
+        options:
+          - preflight
+          - full
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: siracusadaily-newsletter
+  cancel-in-progress: false
+
+jobs:
+  newsletter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      TZ: Europe/Rome
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+      SIRACUSA_OPENAI_TIMEOUT: "240"
+      SIRACUSA_OPENAI_ATTEMPTS: "3"
+      SIRACUSA_BREVO_SENDER: newsletter@siracusadaily.com
+      SIRACUSA_BREVO_SENDER_NAME: SiracusaDaily
+      SIRACUSA_BREVO_REPLY_TO: ciao@siracusadaily.com
+
+    steps:
+      - name: Scarica il motore
+        uses: actions/checkout@v4
+
+      - name: Scarica lo storico privato
+        uses: actions/checkout@v4
+        with:
+          ref: automation-state
+          path: .automation-state
+
+      - name: Prepara Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Installa e verifica il motore
+        run: |
+          python -m pip install --disable-pip-version-check -e backend
+          python -m unittest discover -s backend/tests -v
+
+      - name: Verifica chiavi, database e Brevo
+        run: |
+          siracusa-daily \
+            --database .automation-state/siracusa_daily.db \
+            preflight
+
+      - name: Esegue retrieval, selezione, scrittura e bozza Brevo
+        if: github.event_name == 'schedule' || inputs.mode == 'full'
+        run: |
+          mkdir -p runtime
+          set -o pipefail
+          siracusa-daily \
+            --source-map backend/data/source_map.csv \
+            --endpoint-map backend/data/endpoint_map.csv \
+            --database .automation-state/siracusa_daily.db \
+            run \
+            --writer openai \
+            --model gpt-5-mini \
+            --lookback-hours 168 \
+            --item-limit 30 \
+            --limit 10 \
+            --minimum-items 6 \
+            --output runtime/newsletter.html \
+            --skip-existing-brevo-date \
+            --brevo-draft 2>&1 | tee runtime/run.log
+
+      - name: Consolida il database
+        if: always() && (github.event_name == 'schedule' || inputs.mode == 'full')
+        run: |
+          python - <<'PY'
+          import sqlite3
+          from pathlib import Path
+
+          path = Path(".automation-state/siracusa_daily.db")
+          if path.exists():
+              with sqlite3.connect(path) as connection:
+                  connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+          PY
+
+      - name: Salva lo storico per il giorno successivo
+        if: always() && (github.event_name == 'schedule' || inputs.mode == 'full')
+        working-directory: .automation-state
+        run: |
+          git config user.name "SiracusaDaily Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add -f siracusa_daily.db
+          if git diff --cached --quiet; then
+            echo "Nessun aggiornamento dello storico."
+          else
+            git commit -m "state: $(date +%F) run $GITHUB_RUN_ID"
+            git push origin automation-state
+          fi
+
+      - name: Conserva HTML e log del run
+        if: always() && (github.event_name == 'schedule' || inputs.mode == 'full')
+        uses: actions/upload-artifact@v4
+        with:
+          name: newsletter-${{ github.run_id }}
+          path: |
+            runtime/newsletter.html
+            runtime/run.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Segnala un errore
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          edition_date="$(date +%F)"
+          title="Newsletter automation failed $edition_date"
+          if ! gh issue list --state open --search "$title in:title" --json title --jq '.[].title' | grep -Fxq "$title"; then
+            gh issue create \
+              --title "$title" \
+              --body "Il run automatico non è riuscito. Controlla il log: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          fi

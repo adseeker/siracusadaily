@@ -32,6 +32,13 @@ class BrevoCampaignDraft:
     list_name: str
 
 
+@dataclass(frozen=True)
+class BrevoCampaign:
+    campaign_id: int
+    name: str
+    status: str
+
+
 def _api_key(explicit: str | None = None) -> str:
     key = explicit or os.getenv("BREVO_API_KEY", "")
     if not key:
@@ -109,6 +116,40 @@ def find_list(name: str = DEFAULT_LIST_NAME, *, api_key: str | None = None) -> B
     if len(matches) > 1:
         raise BrevoError(f"esistono più liste Brevo chiamate {name}; rinominarle per renderle univoche")
     return matches[0]
+
+
+def find_campaign_for_edition(
+    edition_date: date, *, api_key: str | None = None,
+) -> BrevoCampaign | None:
+    """Return any Brevo campaign already created for an edition.
+
+    This is the authoritative idempotency check. It deliberately includes drafts,
+    scheduled campaigns and sent campaigns so a retry can never create a duplicate.
+    """
+    prefix = f"SiracusaDaily | {edition_date:%d/%m/%Y} |"
+    offset = 0
+    while True:
+        result = _request(
+            "GET", "/emailCampaigns", api_key=api_key,
+            query={"type": "classic", "limit": 50, "offset": offset, "sort": "desc"},
+        )
+        rows = result.get("campaigns", [])
+        if not isinstance(rows, list):
+            raise BrevoError("elenco campagne Brevo non valido")
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            name = str(row.get("name", "")).strip()
+            if not name.startswith(prefix):
+                continue
+            try:
+                campaign_id = int(row["id"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise BrevoError("la campagna Brevo trovata non contiene un ID valido") from exc
+            return BrevoCampaign(campaign_id, name, str(row.get("status", "unknown")))
+        if len(rows) < 50:
+            return None
+        offset += 50
 
 
 def create_campaign_draft(
