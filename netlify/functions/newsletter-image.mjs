@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { getStore } from "@netlify/blobs";
+import { connectLambda, getStore } from "@netlify/blobs";
 
 const STORE_NAME = "newsletter-images";
 const MAX_IMAGE_BYTES = 300_000;
@@ -50,6 +50,7 @@ export async function handler(event) {
     if (!(payload[0] === 0xff && payload[1] === 0xd8 && payload[2] === 0xff)) {
       return json(415, { error: "Contenuto JPEG non valido" });
     }
+    connectLambda(event);
     const store = getStore(STORE_NAME);
     await store.set(key, payload, {
       metadata: {
@@ -64,6 +65,7 @@ export async function handler(event) {
     return { statusCode: 405, headers: { allow: "GET, HEAD, PUT" }, body: "" };
   }
 
+  connectLambda(event);
   const store = getStore(STORE_NAME);
   const entry = await store.getWithMetadata(key, { type: "arrayBuffer" });
   if (entry === null) return json(404, { error: "Immagine non trovata" });
