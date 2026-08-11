@@ -41,6 +41,15 @@ from siracusa_daily.editorial import (
 )
 from siracusa_daily.geography import evaluate_locality
 from siracusa_daily.events import event_is_in_window, sort_event_clusters
+from siracusa_daily.event_quality import (
+    ELIGIBLE,
+    QUALITY_REASONS_KEY,
+    QUALITY_STATUS_KEY,
+    QUARANTINED,
+    apply_event_quality,
+    evaluate_event_quality,
+    mark_multilingual_duplicates,
+)
 from siracusa_daily.opportunities import opportunity_is_active, sort_opportunity_clusters
 from siracusa_daily.mailer import MailerError, send_html
 from siracusa_daily.models import Article, Source, StoryCluster
@@ -105,6 +114,105 @@ class PipelineTests(unittest.TestCase):
                 "location": "Tonnara di Marzamemi, Pachino (SR)",
             }
         self.assertEqual(len(cluster_articles([left, right])), 1)
+
+    def quality_event(
+        self, title: str, excerpt: str, source_id: str = "SRC-0011",
+        organizer: str = "Organizzatore locale",
+    ) -> Article:
+        article = Article(
+            source_id, "END-EVENT", title,
+            f"https://events.example.com/{abs(hash((title, source_id)))}",
+            datetime(2026, 9, 7, 7, tzinfo=timezone.utc), excerpt,
+            author=organizer,
+        )
+        article.local_score = 0.9
+        article.metadata = {
+            "date_label": "Inizio",
+            "reference_date": article.published_at.isoformat(),
+            "event_start": article.published_at.isoformat(),
+            "location": "Siracusa",
+            "organizer": organizer,
+        }
+        return article
+
+    def test_event_quality_quarantines_non_latin_aggregator_card(self) -> None:
+        article = self.quality_event(
+            "The Now For Next в Гештальт-терапии",
+            "зависимость, созависимость, аддикции — Siracusa",
+        )
+        decision = evaluate_event_quality(article)
+        self.assertEqual(decision.status, QUARANTINED)
+        self.assertIn("scrittura_non_latina_prevalente", decision.reasons)
+
+    def test_event_quality_quarantines_latin_foreign_retreat(self) -> None:
+        article = self.quality_event(
+            "Szicíliai Női Elvonulás – Dolce Vita & Önszeretet",
+            "Hat napos női utazás és önismereti program — Siracusa",
+        )
+        decision = evaluate_event_quality(article)
+        self.assertEqual(decision.status, QUARANTINED)
+        self.assertIn("pubblico_italiano_non_dimostrato", decision.reasons)
+
+    def test_event_quality_accepts_substantive_italian_aggregator_card(self) -> None:
+        article = self.quality_event(
+            "Concerto al tramonto nel cuore di Ortigia",
+            "Una serata di musica dal vivo con artisti locali, aperta a tutta la città. — Siracusa",
+        )
+        self.assertEqual(evaluate_event_quality(article).status, ELIGIBLE)
+
+    def test_event_quality_accepts_foreign_title_with_italian_description(self) -> None:
+        article = self.quality_event(
+            "Candlelight Open Air: Tribute to Queen",
+            "Il concerto propone i brani più amati dei Queen in una suggestiva serata a Siracusa.",
+        )
+        self.assertEqual(evaluate_event_quality(article).status, ELIGIBLE)
+
+    def test_event_quality_rejects_long_english_aggregator_copy(self) -> None:
+        article = self.quality_event(
+            "International Wellness Festival",
+            "Join us for a festival in Sicily with international guests, workshops and community activities.",
+        )
+        self.assertEqual(evaluate_event_quality(article).status, QUARANTINED)
+
+    def test_event_quality_does_not_restrict_eventbrite(self) -> None:
+        article = self.quality_event(
+            "Around the Van: Vanlife Gathering", "Stories and community.", source_id="SRC-0007",
+        )
+        self.assertEqual(evaluate_event_quality(article).status, ELIGIBLE)
+
+    def test_multilingual_same_day_cards_are_marked_as_suspicious_duplicates(self) -> None:
+        latin = self.quality_event(
+            "The Now For Next", "Incontro internazionale con ospiti e partecipanti.",
+            organizer="Istituto di Gestalt HCC Italy",
+        )
+        cyrillic = self.quality_event(
+            "The Now For Next в Гештальт-терапии", "зависимость и созависимость",
+            organizer="Istituto di Gestalt HCC Italy",
+        )
+        for article in (latin, cyrillic):
+            article.metadata["location"] = "Via Alaimo da Lentini 2, Siracusa"
+            apply_event_quality(article)
+        mark_multilingual_duplicates([latin, cyrillic])
+        self.assertEqual(latin.metadata[QUALITY_STATUS_KEY], QUARANTINED)
+        self.assertIn("duplicato_multilingua_sospetto", latin.metadata[QUALITY_REASONS_KEY])
+
+    def test_upcoming_events_exclude_quarantined_aggregator_cards(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            connection = connect(Path(tmp) / "test.db")
+            bad = self.quality_event(
+                "Szicíliai Női Elvonulás",
+                "Hat napos női utazás és önismereti program — Siracusa",
+            )
+            good = self.quality_event(
+                "Festival della musica a Siracusa",
+                "Una serata con musica dal vivo e artisti locali aperta a tutta la città. — Siracusa",
+            )
+            for article in (bad, good):
+                apply_event_quality(article)
+                article.article_id = upsert_article(connection, article)
+            rows = upcoming_event_articles(connection, date(2026, 9, 7))
+            connection.close()
+        self.assertEqual([row.title for row in rows], [good.title])
 
     def test_source_cap(self) -> None:
         sources = {"SRC-A": self.source, "SRC-B": Source("SRC-B", "B", "Testata locale", "high", "high", "Siracusa")}

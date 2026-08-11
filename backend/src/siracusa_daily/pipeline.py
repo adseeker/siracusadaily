@@ -18,6 +18,12 @@ from .database import (
 )
 from .geography import evaluate_locality
 from .events import is_dated_event, sort_event_clusters
+from .event_quality import (
+    QUARANTINED,
+    QUALITY_STATUS_KEY,
+    apply_event_quality,
+    mark_multilingual_duplicates,
+)
 from .opportunities import is_opportunity, sort_opportunity_clusters
 from .retrieval import RetrievalError, retrieve_html, retrieve_rss
 from .selection import select_stories
@@ -31,6 +37,7 @@ class IngestReport:
     endpoints_succeeded: int = 0
     articles_seen: int = 0
     articles_local: int = 0
+    events_quarantined: int = 0
     errors: list[str] | None = None
 
     def __post_init__(self) -> None:
@@ -61,9 +68,14 @@ def ingest(
             report.endpoints_succeeded += 1
             report.articles_seen += len(articles)
             for article in articles:
+                apply_event_quality(article)
+            mark_multilingual_duplicates(articles)
+            for article in articles:
                 article.local_score, article.local_reasons = evaluate_locality(article, sources[article.source_id])
                 if article.local_score >= 0.55:
                     report.articles_local += 1
+                if article.metadata.get(QUALITY_STATUS_KEY) == QUARANTINED:
+                    report.events_quarantined += 1
                 article.article_id = upsert_article(connection, article)
     finally:
         connection.close()

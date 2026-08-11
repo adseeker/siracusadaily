@@ -6,7 +6,7 @@ Produrre ogni giorno una bozza verificabile della newsletter partendo dalla sour
 
 ```text
 Source map → Adapter retrieval → Articoli normalizzati → Filtro geografico
-           → Deduplicazione/cluster → Ranking + source fairness
+           → Gate qualità eventi → Deduplicazione/cluster → Ranking + source fairness
            → Pacchetto evidenze → Writer editoriale → Controlli grounding
            → Bozza Markdown → Revisione editoriale → Invio
 ```
@@ -16,6 +16,7 @@ Source map → Adapter retrieval → Articoli normalizzati → Filtro geografico
 - **Retrieval:** adapter per metodo (`rss`, successivamente `web_html`, `browser_multimodal_assisted`, API).
 - **Persistenza:** SQLite conserva articoli, URL canonici, punteggi e storico delle selezioni.
 - **Filtro geografico:** riconoscimento iniziale di Siracusa, quartieri e comuni provinciali; le fonti istituzionali territoriali ricevono un segnale aggiuntivo.
+- **Gate qualità eventi:** gli aggregatori generalisti sono fonti di discovery. Prima della selezione vengono messi in quarantena gli eventi non chiaramente rivolti al pubblico italiano, con scritture non latine prevalenti, descrizioni insufficienti, organizzatori non verificabili o repliche multilingua sospette. Lo stato e i motivi restano nei metadati; il writer vede soltanto gli eventi ammessi.
 - **Deduplicazione:** similarità di titolo e finestra temporale; un cluster conserva tutte le fonti che hanno trattato lo stesso fatto.
 - **Ranking:** località, affidabilità, priorità editoriale, freschezza, completezza e corroborazione.
 - **Fairness:** limite per fonte e spareggio a favore della fonte usata meno recentemente; non sostituisce la qualità.

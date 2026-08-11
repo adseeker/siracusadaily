@@ -6,6 +6,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from .events import event_is_in_window, event_sort_key
+from .event_quality import event_is_publishable
 from .models import Article
 from .opportunities import opportunity_is_active, opportunity_sort_key
 
@@ -143,6 +144,7 @@ def upcoming_event_articles(
     events = [
         article for article in _articles_from_rows(rows)
         if event_is_in_window(article, edition_date, days)
+        and event_is_publishable(article)
     ]
     return sorted(events, key=event_sort_key)
 

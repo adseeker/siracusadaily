@@ -26,6 +26,14 @@ in corso e li ordina cronologicamente. Gli eventi possono ricomparire nelle
 edizioni successive finché restano nella finestra; il limite operativo
 predefinito è 8 e si modifica con `--event-limit`.
 
+Gli aggregatori generalisti AllEvents e Virgilio alimentano un filtro editoriale
+aggiuntivo. La presenza geografica a Siracusa non basta: gli eventi con pubblico
+italiano non dimostrabile, scritture straniere prevalenti, descrizioni troppo
+scarse o duplicazioni multilingua sospette vengono conservati nel database in
+quarantena con la relativa motivazione. Sono esclusi prima della selezione e non
+vengono mai inviati al writer. Eventbrite, il Comune e i calendari locali non sono
+soggetti a questa limitazione specifica.
+
 La sezione `Lavoro e opportunità` è anch'essa indipendente dalle notizie. Concorsi,
 bandi e offerte strutturate possono ricomparire ogni giorno finché risultano
 aperti. Una scadenza esplicita vale fino alla fine del giorno indicato; uno stato

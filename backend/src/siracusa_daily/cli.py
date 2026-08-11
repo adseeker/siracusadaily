@@ -185,7 +185,11 @@ def main() -> None:
             args.source_map, args.endpoint_map, args.database, args.endpoint_limit, args.item_limit,
             set(args.method) if args.method else None,
         )
-        print(f"Retrieval: {report.endpoints_succeeded}/{report.endpoints_attempted} endpoint; {report.articles_seen} articoli; {report.articles_local} locali")
+        print(
+            f"Retrieval: {report.endpoints_succeeded}/{report.endpoints_attempted} endpoint; "
+            f"{report.articles_seen} articoli; {report.articles_local} locali; "
+            f"{report.events_quarantined} eventi in quarantena"
+        )
         for error in report.errors:
             print(f"WARN {error}")
         if args.command == "ingest":
