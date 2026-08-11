@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -50,14 +51,24 @@ from siracusa_daily.event_quality import (
     evaluate_event_quality,
     mark_multilingual_duplicates,
 )
-from siracusa_daily.opportunities import opportunity_is_active, sort_opportunity_clusters
+from siracusa_daily.opportunities import (
+    diversify_opportunity_clusters,
+    opportunity_is_active,
+    sort_opportunity_clusters,
+)
+from siracusa_daily.opportunity_quality import (
+    QUARANTINED as OPPORTUNITY_QUARANTINED,
+    apply_opportunity_quality,
+    opportunity_is_publishable,
+)
 from siracusa_daily.mailer import MailerError, send_html
 from siracusa_daily.models import Article, Source, StoryCluster
 from siracusa_daily.models import Endpoint
 from siracusa_daily.retrieval import (
     _allevents_articles, _asp_articles, _comune_articles, _concorsi_articles,
     _deadline_from_text, _eventbrite_articles, _eventi_siracusa_articles,
-    _opportunity_detail_metadata, _virgilio_articles,
+    _gigroup_articles, _inpa_articles, _opportunity_detail_metadata,
+    _randstad_articles, _synergie_articles, _virgilio_articles,
 )
 from siracusa_daily.selection import cluster_articles, select_stories
 from siracusa_daily.text import canonical_url
@@ -345,6 +356,20 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual([item.title for item in result], [article.title])
             connection.close()
 
+    def test_active_opportunities_exclude_quarantined_workplaces(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            connection = connect(Path(directory) / "test.db")
+            article = self.article("Offerta indicizzata a Siracusa con sede fuori provincia")
+            article.metadata = {
+                "opportunity": "true", "opportunity_status": "listed",
+                "opportunity_verified_at": datetime.now(timezone.utc).isoformat(),
+                "opportunity_quality_status": "quarantined",
+            }
+            article.local_score = 0.9
+            upsert_article(connection, article)
+            self.assertEqual(active_opportunity_articles(connection, date.today()), [])
+            connection.close()
+
     def test_opportunities_are_sorted_by_urgent_deadline(self) -> None:
         urgent = self.article("Bando in scadenza")
         recent = self.article("Nuova offerta senza scadenza")
@@ -359,6 +384,14 @@ class PipelineTests(unittest.TestCase):
         ]
         ordered = sort_opportunity_clusters(clusters, date(2026, 8, 11))
         self.assertEqual([cluster.key for cluster in ordered], ["urgent", "recent"])
+
+    def test_opportunity_selection_rotates_sources_before_repeating(self) -> None:
+        clusters = []
+        for key, source_id in (("a1", "SRC-A"), ("a2", "SRC-A"), ("b1", "SRC-B"), ("c1", "SRC-C")):
+            article = self.article(key, source_id)
+            clusters.append(StoryCluster(key, [article], representative=article))
+        selected = diversify_opportunity_clusters(clusters, 4)
+        self.assertEqual([cluster.key for cluster in selected], ["a1", "b1", "c1", "a2"])
 
     def test_opportunity_deduplication_ignores_publication_age(self) -> None:
         left = self.article("Comune di Floridia, selezione per funzionario tecnico", "SRC-A")
@@ -980,6 +1013,71 @@ class PipelineTests(unittest.TestCase):
         rows = _asp_articles(document, self.endpoint("SRC-0010", "https://www.asp.sr.it/concorsi"), 10)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].published_at.month, 7)
+
+    def test_randstad_parser_quarantines_an_outside_workplace(self) -> None:
+        payload = {"initialValues": {"results": [{
+            "jobTitle": "Operaio generico",
+            "description": {"shortDescription": "Sede di partenza: Siracusa. Sede di lavoro: Taranto (TA)."},
+            "displayId": "CX1", "postingDetail": {"postingTime": "2026-08-11T08:00:00Z"},
+            "workLocationAddress": {"locality": "Siracusa", "administrativeArea": "Sicilia"},
+            "webDetails": {"postedUrl": [{"href": "https://www.randstad.it/offerte-lavoro/operaio_1/"}]},
+        }]}}
+        frame = json.dumps([1, "6:" + json.dumps(payload, separators=(",", ":"))])
+        document = f"<script>self.__next_f.push({frame})</script>"
+        endpoint = Endpoint("END-0045", "SRC-0014", "website", "Randstad", "https://www.randstad.it/test", None, "web_html", ("lavoro",))
+        rows = _randstad_articles(document, endpoint, 10)
+        self.assertEqual(len(rows), 1)
+        rows[0].metadata["opportunity"] = "true"
+        self.assertEqual(apply_opportunity_quality(rows[0]), OPPORTUNITY_QUARANTINED)
+        self.assertFalse(opportunity_is_publishable(rows[0]))
+
+    def test_gigroup_parser_preserves_location_and_posting_id(self) -> None:
+        document = '''<article class="ggp-job-item">
+        <span class="ggpdayspassed-text">Annuncio pubblicato 4 giorni fa</span>
+        <a itemprop="url" href="/offerte-lavoro-dettaglio/test/1348695/" class="ggp-job-title-url"
+          data-job='{&quot;offerNumber&quot;:&quot;1348695&quot;}'><h2>Manutentore elettrico</h2></a>
+        <div class="job-tag">Full time</div><span class="visually-hidden">Luogo di lavoro:</span><span>Siracusa, SR, Sicilia</span>
+        </article><article class="ggp-job-item"><a href="/ragusa" class="ggp-job-title-url"><h2>Ruolo fuori provincia</h2></a>
+        <span class="visually-hidden">Luogo di lavoro:</span><span>Ragusa, RG, Sicilia</span></article>'''
+        rows = _gigroup_articles(document, Endpoint(
+            "END-0046", "SRC-0015", "website", "Gi Group", "https://www.gigroup.it/offerte-lavoro/", None, "web_html", ("lavoro",),
+        ), 10)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].metadata["source_posting_id"], "1348695")
+        self.assertIn("Siracusa", rows[0].metadata["work_location"])
+
+    @patch("siracusa_daily.retrieval._post_json")
+    def test_synergie_parser_excludes_nearby_provinces(self, post_json) -> None:
+        post_json.return_value = {"hits": [
+            {"title": "Store manager", "city": "Siracusa", "published_from": 1785715200000,
+             "source_vacancy_url": "https://synergie.intervieweb.it/jobs/store-manager/it/", "id_inrecruiting": "349266"},
+            {"title": "Addetto vendita", "city": "Catania", "published_from": 1785715200000,
+             "source_vacancy_url": "https://synergie.intervieweb.it/jobs/addetto/it/", "id_inrecruiting": "349267"},
+        ]}
+        document = '{"PUBLIC_ALGOLIA_APP_ID":"APP","PUBLIC_ALGOLIA_API_KEY":"KEY","PUBLIC_ALGOLIA_APPLICATIONS_INDEX_NAME":"applications"}'
+        endpoint = Endpoint("END-0047", "SRC-0016", "website", "Synergie", "https://www.synergie-italia.it/test", None, "web_html", ("lavoro",))
+        rows = _synergie_articles(document, endpoint, 10, 5)
+        self.assertEqual([row.title for row in rows], ["Store manager"])
+
+    @patch("siracusa_daily.retrieval._post_json")
+    def test_inpa_parser_excludes_generic_nationwide_results(self, post_json) -> None:
+        local = {
+            "id": "local", "codice": "SR-1", "titolo": "Funzionario al Comune di Francofonte",
+            "sedi": ["Sicilia", "Francofonte"], "calculatedStatus": "OPEN",
+            "dataPubblicazione": "2026-08-07T09:10:00Z", "dataScadenza": "2026-09-18T21:59:00Z",
+            "entiRiferimento": ["Comune di Francofonte"], "descrizioneBreve": "Selezione pubblica",
+        }
+        nationwide = {
+            "id": "national", "titolo": "Mobilità nazionale MEF",
+            "sedi": ["Siracusa"] + [f"Provincia {number}" for number in range(30)],
+            "dataPubblicazione": "2026-08-07T09:10:00Z", "entiRiferimento": ["MEF"],
+        }
+        post_json.return_value = {"content": [local, nationwide]}
+        endpoint = Endpoint("END-0049", "SRC-0018", "website", "inPA", "https://www.inpa.gov.it/bandi-e-avvisi/", None, "web_html", ("concorsi",))
+        rows = _inpa_articles(endpoint, 10, 5)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].metadata["source_posting_id"], "SR-1")
+        self.assertIn("opportunity_deadline", rows[0].metadata)
 
 
 if __name__ == "__main__":

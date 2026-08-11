@@ -6,7 +6,7 @@ Produrre ogni giorno una bozza verificabile della newsletter partendo dalla sour
 
 ```text
 Source map → Adapter retrieval → Articoli normalizzati → Filtro geografico
-           → Gate qualità eventi → Deduplicazione/cluster → Ranking + source fairness
+           → Gate qualità eventi/opportunità → Deduplicazione/cluster → Ranking + source fairness
            → Pacchetto evidenze → Writer editoriale → Controlli grounding
            → Bozza Markdown → Revisione editoriale → Invio
 ```
@@ -17,6 +17,7 @@ Source map → Adapter retrieval → Articoli normalizzati → Filtro geografico
 - **Persistenza:** SQLite conserva articoli, URL canonici, punteggi e storico delle selezioni.
 - **Filtro geografico:** riconoscimento iniziale di Siracusa, quartieri e comuni provinciali; le fonti istituzionali territoriali ricevono un segnale aggiuntivo.
 - **Gate qualità eventi:** gli aggregatori generalisti sono fonti di discovery. Prima della selezione vengono messi in quarantena gli eventi non chiaramente rivolti al pubblico italiano, con scritture non latine prevalenti, descrizioni insufficienti, organizzatori non verificabili o repliche multilingua sospette. Lo stato e i motivi restano nei metadati; il writer vede soltanto gli eventi ammessi.
+- **Gate qualità opportunità:** per le offerte di lavoro conta la sede effettiva dichiarata nella scheda, non il filtro geografico della pagina. Trasferte e posizioni fuori provincia vengono conservate in quarantena ma non raggiungono il writer; le procedure nazionali multi-sede entrano solo con un riferimento locale specifico.
 - **Deduplicazione:** similarità di titolo e finestra temporale; un cluster conserva tutte le fonti che hanno trattato lo stesso fatto.
 - **Ranking:** località, affidabilità, priorità editoriale, freschezza, completezza e corroborazione.
 - **Fairness:** limite per fonte e spareggio a favore della fonte usata meno recentemente; non sostituisce la qualità.
@@ -27,7 +28,7 @@ Source map → Adapter retrieval → Articoli normalizzati → Filtro geografico
 
 ## Decisioni e compromessi
 
-- Python standard library riduce dipendenze e rende facile il deployment, ma l'estrazione HTML avanzata richiederà un adapter più ricco.
+- La pipeline usa quasi esclusivamente la standard library; `pypdf` è l'unica dipendenza di retrieval aggiuntiva e serve a leggere gli avvisi ufficiali del Centro per l'impiego.
 - SQLite è adatto a una pipeline giornaliera e a un singolo processo. PostgreSQL diventerà utile con più worker o una redazione multiutente.
 - La deduplicazione lessicale è trasparente e testabile; embedding e clustering semantico saranno introdotti dopo la raccolta di un dataset di valutazione.
 - La bozza Markdown permette revisione umana immediata. La distribuzione email resta fuori dal primo vertical slice.
@@ -46,3 +47,8 @@ Source map → Adapter retrieval → Articoli normalizzati → Filtro geografico
 - Agenda eventi: finestra mobile di sette giorni a partire dalla data dell'edizione; usa la data dell'evento, non quella di pubblicazione, e conserva gli appuntamenti futuri nel database fino alla conclusione.
 - ConcorsiPubblici.com: solo bandi attivi, con scadenza e descrizione; resta obbligatoria la verifica primaria.
 - ASP Siracusa: card delle procedure aperte, data di pubblicazione e permalink.
+- Randstad: dataset pubblico incorporato nella pagina, con controllo della sede effettiva riportata nella descrizione.
+- Gi Group: card strutturate per provincia, filtrate nuovamente sul luogo di lavoro.
+- Synergie: ricerca pubblica usata dal sito, limitata ai comuni della provincia dopo la ricerca per raggio.
+- Centro per l'impiego di Siracusa: sola sezione territoriale degli avviamenti L. 68/99; lettura PDF, requisiti e scadenza.
+- inPA: ricerca pubblica ufficiale per provincia e stato aperto; esclusione dei bandi nazionali genericamente multi-sede.

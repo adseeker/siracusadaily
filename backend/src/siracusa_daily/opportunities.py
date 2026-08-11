@@ -74,3 +74,27 @@ def sort_opportunity_clusters(
         clusters,
         key=lambda cluster: opportunity_sort_key(cluster.representative, edition_date),
     )
+
+
+def diversify_opportunity_clusters(
+    clusters: list[StoryCluster], limit: int,
+) -> list[StoryCluster]:
+    """Round-robin sources while preserving each source's editorial order."""
+    queues: dict[str, list[StoryCluster]] = {}
+    source_order: list[str] = []
+    for cluster in clusters:
+        source_id = cluster.representative.source_id
+        if source_id not in queues:
+            queues[source_id] = []
+            source_order.append(source_id)
+        queues[source_id].append(cluster)
+    selected: list[StoryCluster] = []
+    while len(selected) < limit:
+        added = False
+        for source_id in source_order:
+            if queues[source_id] and len(selected) < limit:
+                selected.append(queues[source_id].pop(0))
+                added = True
+        if not added:
+            break
+    return selected

@@ -7,7 +7,7 @@ name = "siracusa-daily"
 version = "0.1.0"
 description = "Retrieval, selection and newsletter drafting pipeline for SiracusaDaily"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["pypdf>=5.0,<7"]
 
 [project.scripts]
 siracusa-daily = "siracusa_daily.cli:main"
@@ -17,4 +17,3 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-

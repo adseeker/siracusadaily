@@ -40,8 +40,11 @@ aperti. Una scadenza esplicita vale fino alla fine del giorno indicato; uno stat
 chiuso o scaduto rimuove subito la voce. Se manca la scadenza, la presenza viene
 ricontrollata alla fonte e tollera fino a tre giorni senza conferma, così un errore
 temporaneo del sito non fa sparire l'opportunità. L'ordine privilegia le scadenze
-entro sette giorni e poi le pubblicazioni più recenti. Il limite predefinito è 6
-e si modifica con `--opportunity-limit`.
+entro sette giorni e poi le pubblicazioni più recenti. La selezione ruota tra le
+fonti prima di ripeterne una, così un portale più ricco non monopolizza la sezione.
+La sede effettiva deve appartenere alla provincia: i falsi positivi restano in
+quarantena e non raggiungono il writer. Il limite predefinito è 6 e si modifica
+con `--opportunity-limit`.
 
 L'oggetto non può essere guidato da decessi, incidenti gravi, violenza, vittime,
 cronaca nera o altre formulazioni emotivamente forti. Queste notizie possono

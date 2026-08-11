@@ -159,9 +159,12 @@ def active_opportunity_articles(
              AND json_extract(metadata, '$.opportunity') = 'true'""",
         (minimum_local_score,),
     ).fetchall()
+    from .opportunity_quality import opportunity_is_publishable
+
     opportunities = [
         article for article in _articles_from_rows(rows)
         if opportunity_is_active(article, edition_date, grace_days)
+        and opportunity_is_publishable(article)
     ]
     return sorted(
         opportunities,

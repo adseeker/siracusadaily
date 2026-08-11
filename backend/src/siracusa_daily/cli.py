@@ -188,7 +188,8 @@ def main() -> None:
         print(
             f"Retrieval: {report.endpoints_succeeded}/{report.endpoints_attempted} endpoint; "
             f"{report.articles_seen} articoli; {report.articles_local} locali; "
-            f"{report.events_quarantined} eventi in quarantena"
+            f"{report.events_quarantined} eventi in quarantena; "
+            f"{report.opportunities_quarantined} opportunità in quarantena"
         )
         for error in report.errors:
             print(f"WARN {error}")

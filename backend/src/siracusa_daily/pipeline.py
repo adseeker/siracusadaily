@@ -24,7 +24,15 @@ from .event_quality import (
     apply_event_quality,
     mark_multilingual_duplicates,
 )
-from .opportunities import is_opportunity, sort_opportunity_clusters
+from .opportunities import (
+    diversify_opportunity_clusters,
+    is_opportunity,
+    sort_opportunity_clusters,
+)
+from .opportunity_quality import (
+    QUARANTINED as OPPORTUNITY_QUARANTINED,
+    apply_opportunity_quality,
+)
 from .retrieval import RetrievalError, retrieve_html, retrieve_rss
 from .selection import select_stories
 from .writer import render_html, render_markdown, save_html, save_markdown
@@ -38,6 +46,7 @@ class IngestReport:
     articles_seen: int = 0
     articles_local: int = 0
     events_quarantined: int = 0
+    opportunities_quarantined: int = 0
     errors: list[str] | None = None
 
     def __post_init__(self) -> None:
@@ -69,6 +78,7 @@ def ingest(
             report.articles_seen += len(articles)
             for article in articles:
                 apply_event_quality(article)
+                apply_opportunity_quality(article)
             mark_multilingual_duplicates(articles)
             for article in articles:
                 article.local_score, article.local_reasons = evaluate_locality(article, sources[article.source_id])
@@ -76,6 +86,8 @@ def ingest(
                     report.articles_local += 1
                 if article.metadata.get(QUALITY_STATUS_KEY) == QUARANTINED:
                     report.events_quarantined += 1
+                if article.metadata.get("opportunity_quality_status") == OPPORTUNITY_QUARANTINED:
+                    report.opportunities_quarantined += 1
                 article.article_id = upsert_article(connection, article)
     finally:
         connection.close()
@@ -120,9 +132,10 @@ def build_newsletter(
             max_per_source=max(1, len(opportunity_articles)),
             cluster_max_age_hours=None,
         )
-        opportunity_clusters = sort_opportunity_clusters(
-            opportunity_clusters, edition_date,
-        )[:opportunity_limit]
+        opportunity_clusters = diversify_opportunity_clusters(
+            sort_opportunity_clusters(opportunity_clusters, edition_date),
+            opportunity_limit,
+        )
         for cluster in opportunity_clusters:
             cluster.category = "Lavoro e opportunità"
         clusters = (

@@ -3,13 +3,14 @@ from __future__ import annotations
 import email.utils
 import gzip
 import html
+import io
 import json
 import re
 import urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
-from urllib.parse import urljoin, urlsplit
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode, urljoin, urlsplit
 from zoneinfo import ZoneInfo
 
 from .models import Article, Endpoint
@@ -17,7 +18,13 @@ from .text import canonical_url, strip_html
 
 USER_AGENT = "SiracusaDaily/0.1 (+local-news-research)"
 
-OPPORTUNITY_ENDPOINTS = {"END-0022", "END-0038", "END-0039", "END-0040", "END-0041"}
+OPPORTUNITY_ENDPOINTS = {
+    "END-0022", "END-0038", "END-0039", "END-0040", "END-0041",
+    "END-0045", "END-0046", "END-0047", "END-0048", "END-0049",
+}
+PREVERIFIED_OPPORTUNITY_ENDPOINTS = {
+    "END-0045", "END-0046", "END-0047", "END-0048", "END-0049",
+}
 OPPORTUNITY_EXCLUSIONS = (
     "avviso ai creditori", "avviso ad opponendum", "commissione esaminatrice",
     "verbale del sorteggio", "avviso interno", "mobilità interna", "mobilita interna",
@@ -39,6 +46,24 @@ def _download(url: str, timeout: float = 15.0, accept: str | None = None) -> byt
             if response.headers.get("Content-Encoding") == "gzip":
                 payload = gzip.decompress(payload)
             return payload
+    except Exception as exc:  # network boundary
+        raise RetrievalError(f"{url}: {exc}") from exc
+
+
+def _post_json(
+    url: str, payload: dict, timeout: float = 15.0,
+    headers: dict[str, str] | None = None,
+) -> dict:
+    request = urllib.request.Request(
+        url, data=json.dumps(payload).encode("utf-8"), method="POST",
+        headers={
+            "User-Agent": USER_AGENT, "Accept": "application/json",
+            "Content-Type": "application/json", **(headers or {}),
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8", errors="replace"))
     except Exception as exc:  # network boundary
         raise RetrievalError(f"{url}: {exc}") from exc
 
@@ -66,7 +91,10 @@ def _entry_link(node: ET.Element) -> str:
 def _parse_date(value: str) -> datetime:
     if not value:
         return datetime.now(timezone.utc)
-    parsed = email.utils.parsedate_to_datetime(value)
+    try:
+        parsed = email.utils.parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        parsed = None
     if parsed is not None:
         return parsed.astimezone(timezone.utc) if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
     try:
@@ -156,6 +184,8 @@ def _is_actionable_opportunity(endpoint: Endpoint, article: Article) -> bool:
     text = _html_text(f"{article.title} {article.excerpt}").lower()
     if any(term in text for term in OPPORTUNITY_EXCLUSIONS):
         return False
+    if endpoint.endpoint_id in PREVERIFIED_OPPORTUNITY_ENDPOINTS:
+        return True
     if endpoint.endpoint_id == "END-0040":
         return True
     if endpoint.endpoint_id == "END-0041":
@@ -239,6 +269,9 @@ def _prepare_opportunities(
                 "date_label": "Scadenza", "reference_date": deadline.isoformat(),
                 "opportunity_deadline": deadline.isoformat(),
             })
+
+    if endpoint.endpoint_id in PREVERIFIED_OPPORTUNITY_ENDPOINTS:
+        return articles
 
     def detail(article: Article) -> tuple[Article, dict[str, str] | None]:
         try:
@@ -624,9 +657,407 @@ def _concorsi_articles(document: str, endpoint: Endpoint, limit: int) -> list[Ar
     return articles
 
 
+def _randstad_results(document: str) -> list[dict]:
+    """Read the public result payload embedded in Randstad's Next.js page."""
+    richest: list[dict] = []
+    decoder = json.JSONDecoder()
+    for marker in re.finditer(r"self\.__next_f\.push\(", document):
+        try:
+            frame, _ = decoder.raw_decode(document[marker.end():])
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(frame, list):
+            continue
+        for value in frame:
+            if not isinstance(value, str):
+                continue
+            initial = value.find('"initialValues":')
+            if initial < 0:
+                continue
+            try:
+                payload, _ = decoder.raw_decode(value[initial + len('"initialValues":'):])
+            except (json.JSONDecodeError, TypeError):
+                continue
+            results = payload.get("results", []) if isinstance(payload, dict) else []
+            if isinstance(results, list) and len(results) > len(richest):
+                richest = [item for item in results if isinstance(item, dict)]
+    return richest
+
+
+def _outside_workplace_in_description(value: str) -> str:
+    """Return an explicit non-Siracusa workplace found in a job description."""
+    text = _html_text(value)
+    local_codes = {"SR"}
+    for match in re.finditer(
+        r"(?:sed[ei]|luog(?:o|hi))\s+(?:operative?\s+)?di\s+lavoro|sede\s+operativa",
+        text, flags=re.I,
+    ):
+        context = text[match.start():match.end() + 180]
+        codes = {code.upper() for code in re.findall(r"\(([A-Z]{2})\)", context)}
+        outside = sorted(codes - local_codes)
+        if outside and not (codes & local_codes):
+            return ", ".join(outside)
+        if re.search(r"\b(?:Catania|Ragusa|Taranto|Livorno|Marghera)\b", context, flags=re.I):
+            if not re.search(r"\b(?:Siracusa|Augusta|Melilli|Priolo|Lentini|Noto|Avola)\b", context, flags=re.I):
+                return _html_text(context)[:160]
+    return ""
+
+
+def _randstad_articles(document: str, endpoint: Endpoint, limit: int) -> list[Article]:
+    articles: list[Article] = []
+    for item in _randstad_results(document):
+        title = _html_text(str(item.get("jobTitle") or ""))
+        description = item.get("description") if isinstance(item.get("description"), dict) else {}
+        excerpt = _html_text(str(description.get("shortDescription") or ""))
+        work = item.get("workLocationAddress") if isinstance(item.get("workLocationAddress"), dict) else {}
+        location = " · ".join(str(value) for value in (
+            work.get("locality"), work.get("administrativeArea"),
+        ) if value)
+        details = item.get("webDetails") if isinstance(item.get("webDetails"), dict) else {}
+        links = details.get("postedUrl") if isinstance(details.get("postedUrl"), list) else []
+        url = next((str(link.get("href")) for link in links if isinstance(link, dict) and link.get("href")), "")
+        if not title or not url:
+            continue
+        posting = item.get("postingDetail") if isinstance(item.get("postingDetail"), dict) else {}
+        published = _parse_date(str(posting.get("postingTime") or ""))
+        outside = _outside_workplace_in_description(excerpt)
+        articles.append(Article(
+            source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id,
+            title=title, url=canonical_url(url), published_at=published,
+            excerpt=" — ".join(value for value in (excerpt, f"Sede indicata: {location}" if location else "") if value),
+            author="Randstad", content_buckets=endpoint.content_buckets,
+            metadata={
+                "work_location": location,
+                "opportunity_location_verified": "false" if outside else "true",
+                "opportunity_location_reason": (
+                    f"La descrizione indica una sede effettiva fuori provincia: {outside}"
+                    if outside else "Sede locale dichiarata nella scheda ufficiale"
+                ),
+                "source_posting_id": str(item.get("displayId") or item.get("id") or ""),
+                "opportunity_detail_complete": "true",
+            },
+        ))
+        if len(articles) >= limit:
+            break
+    return articles
+
+
+def _gigroup_articles(document: str, endpoint: Endpoint, limit: int) -> list[Article]:
+    articles: list[Article] = []
+    for match in re.finditer(r"<article\b[^>]*class=[\"'][^\"']*ggp-job-item[^\"']*[\"'][^>]*>(.*?)</article>", document, flags=re.I | re.S):
+        block = match.group(1)
+        link_match = re.search(
+            r"<a\b(?P<attrs>[^>]*class=[\"'][^\"']*ggp-job-title-url[^\"']*[\"'][^>]*)>(?P<body>.*?)</a>",
+            block, flags=re.I | re.S,
+        )
+        if not link_match:
+            continue
+        href_match = re.search(r"\bhref=[\"']([^\"']+)[\"']", link_match.group("attrs"), flags=re.I)
+        if not href_match:
+            continue
+        title_match = re.search(r"<h2\b[^>]*>(.*?)</h2>", link_match.group("body"), flags=re.I | re.S)
+        title = _html_text(title_match.group(1) if title_match else link_match.group("body"))
+        url = canonical_url(urljoin(endpoint.url, html.unescape(href_match.group(1))))
+        location_match = re.search(
+            r"Luogo\s+di\s+lavoro:\s*</span>\s*<span[^>]*>(.*?)</span>", block, flags=re.I | re.S,
+        )
+        location = _html_text(location_match.group(1)) if location_match else ""
+        if not _is_local_work_city(location):
+            continue
+        tags = [_html_text(value) for value in re.findall(
+            r"<div\b[^>]*class=[\"'][^\"']*job-tag[^\"']*[\"'][^>]*>(.*?)</div>", block, flags=re.I | re.S,
+        )]
+        days_match = re.search(r"Annuncio\s+pubblicato\s+(\d+)\s+giorn", block, flags=re.I)
+        published = datetime.now(timezone.utc) - timedelta(days=int(days_match.group(1))) if days_match else datetime.now(timezone.utc)
+        data_match = re.search(r"\bdata-job=(?:'([^']+)'|\"([^\"]+)\")", link_match.group("attrs"), flags=re.I | re.S)
+        job_data: dict = {}
+        if data_match:
+            try:
+                job_data = json.loads(html.unescape(data_match.group(1) or data_match.group(2)))
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if not title or not url:
+            continue
+        excerpt = ". ".join(value for value in (location, *tags) if value)
+        articles.append(Article(
+            source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id,
+            title=title, url=url, published_at=published, excerpt=excerpt,
+            author="Gi Group", content_buckets=endpoint.content_buckets,
+            metadata={
+                "work_location": location,
+                "opportunity_location_verified": "true" if location else "false",
+                "opportunity_location_reason": "Sede dichiarata nella scheda ufficiale" if location else "Sede non disponibile",
+                "source_posting_id": str(job_data.get("offerNumber") or ""),
+                "opportunity_detail_complete": "true",
+            },
+        ))
+        if len(articles) >= limit:
+            break
+    return articles
+
+
+LOCAL_WORK_CITIES = {
+    "siracusa", "augusta", "avola", "buccheri", "buscemi", "canicattini bagni",
+    "carlentini", "cassaro", "ferla", "floridia", "francofonte", "lentini",
+    "melilli", "noto", "pachino", "palazzolo acreide", "portopalo di capo passero",
+    "priolo gargallo", "rosolini", "solarino", "sortino", "cassibile",
+}
+
+
+def _is_local_work_city(value: str) -> bool:
+    normalized = re.sub(r"[^a-zà-ù0-9]+", " ", _html_text(value).lower()).strip()
+    return any(city == normalized or city in normalized for city in LOCAL_WORK_CITIES)
+
+
+def _synergie_articles(document: str, endpoint: Endpoint, limit: int, timeout: float) -> list[Article]:
+    values: dict[str, str] = {}
+    for key in (
+        "PUBLIC_ALGOLIA_APP_ID", "PUBLIC_ALGOLIA_API_KEY",
+        "PUBLIC_ALGOLIA_APPLICATIONS_INDEX_NAME",
+    ):
+        match = re.search(rf'"{key}":"([^"\\]+)"', document)
+        if match:
+            values[key] = match.group(1)
+    if len(values) != 3:
+        raise RetrievalError(f"{endpoint.url}: configurazione pubblica della ricerca Synergie non trovata")
+    app_id = values["PUBLIC_ALGOLIA_APP_ID"]
+    params = urlencode({
+        "x-algolia-application-id": app_id,
+        "x-algolia-api-key": values["PUBLIC_ALGOLIA_API_KEY"],
+    })
+    api_url = (
+        f"https://{app_id}-dsn.algolia.net/1/indexes/"
+        f"{values['PUBLIC_ALGOLIA_APPLICATIONS_INDEX_NAME']}/query?{params}"
+    )
+    payload = _post_json(
+        api_url,
+        {
+            "query": "",
+            "filters": '(website:"synergie-italia" OR website:"synergie-outsourcing")',
+            "page": 0, "hitsPerPage": max(80, limit * 4),
+            "aroundLatLng": "37.0755, 15.2866", "aroundRadius": 100_000,
+        },
+        timeout=timeout,
+        headers={"Origin": "https://www.synergie-italia.it", "Referer": endpoint.url},
+    )
+    hits = payload.get("hits", []) if isinstance(payload, dict) else []
+    articles: list[Article] = []
+    for item in hits:
+        if not isinstance(item, dict):
+            continue
+        city = _html_text(str(item.get("city") or item.get("location") or ""))
+        if not _is_local_work_city(city):
+            continue
+        title = _html_text(str(item.get("title") or ""))
+        raw_url = str(item.get("source_vacancy_url") or "")
+        slug = str(item.get("linkKey") or "")
+        url = raw_url or urljoin(endpoint.url, f"/candidato/offerte-di-lavoro/{slug}")
+        published_value = item.get("published_from")
+        try:
+            published = datetime.fromtimestamp(float(published_value) / 1000, tz=timezone.utc)
+        except (TypeError, ValueError, OverflowError):
+            published = datetime.now(timezone.utc)
+        description = _html_text(str(item.get("description_position") or ""))
+        contract = _html_text(str(item.get("contract_type") or ""))
+        excerpt = ". ".join(value for value in (description, f"Sede: {city}", contract) if value)
+        if not title or not url:
+            continue
+        articles.append(Article(
+            source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id,
+            title=title, url=canonical_url(url), published_at=published,
+            excerpt=excerpt, author="Synergie", content_buckets=endpoint.content_buckets,
+            metadata={
+                "work_location": city, "opportunity_location_verified": "true",
+                "opportunity_location_reason": "Comune della provincia dichiarato nella scheda ufficiale",
+                "source_posting_id": str(item.get("id_inrecruiting") or ""),
+                "opportunity_detail_complete": "true",
+            },
+        ))
+        if len(articles) >= limit:
+            break
+    return articles
+
+
+def _inpa_is_local(item: dict) -> bool:
+    offices = item.get("sedi") if isinstance(item.get("sedi"), list) else []
+    local_offices = [str(value) for value in offices if _is_local_work_city(str(value))]
+    if not local_offices:
+        return False
+    # Broad national procedures that happen to list every Italian province are
+    # not useful enough for a local daily newsletter unless Siracusa is named
+    # in the actual notice, body or issuing authority.
+    if len(offices) <= 12:
+        return True
+    specific = " ".join(str(item.get(key) or "") for key in (
+        "titolo", "descrizioneBreve", "descrizione", "entiRiferimento",
+    ))
+    return _is_local_work_city(_html_text(specific))
+
+
+def _inpa_articles(endpoint: Endpoint, limit: int, timeout: float) -> list[Article]:
+    api_url = (
+        "https://portale.inpa.gov.it/concorsi-smart/api/concorso-public-area/"
+        f"search-better?page=0&size={max(50, limit * 4)}"
+    )
+    payload = _post_json(api_url, {
+        "text": "", "categoriaId": None, "regioneId": None, "status": ["OPEN"],
+        "settoreId": None, "provinciaCodice": "SR", "dateFrom": None, "dateTo": None,
+        "livelliAnzianitaIds": None, "tipoImpiegoId": None, "salaryMin": None,
+        "salaryMax": None, "enteRiferimentoName": "",
+    }, timeout=timeout)
+    results = payload.get("content", []) if isinstance(payload, dict) else []
+    articles: list[Article] = []
+    for item in results:
+        if not isinstance(item, dict) or not _inpa_is_local(item):
+            continue
+        title = _html_text(str(item.get("titolo") or ""))
+        item_id = str(item.get("id") or "")
+        if not title or not item_id:
+            continue
+        offices = item.get("sedi") if isinstance(item.get("sedi"), list) else []
+        location = ", ".join(str(value) for value in offices if str(value).lower() != "sicilia")
+        description = _html_text(str(item.get("descrizioneBreve") or item.get("descrizione") or ""))
+        entities = item.get("entiRiferimento") if isinstance(item.get("entiRiferimento"), list) else []
+        entity = ", ".join(str(value) for value in entities)
+        deadline = _parse_optional_local_date(str(item.get("dataScadenza") or ""))
+        published = _parse_date(str(item.get("dataPubblicazione") or ""))
+        metadata = {
+            "work_location": location, "employer": entity,
+            "opportunity_location_verified": "true",
+            "opportunity_location_reason": "Sede locale restituita dal portale inPA",
+            "source_posting_id": str(item.get("codice") or item_id),
+            "opportunity_status": "open", "opportunity_detail_complete": "true",
+        }
+        if deadline is not None:
+            metadata.update({
+                "date_label": "Scadenza", "reference_date": deadline.isoformat(),
+                "opportunity_deadline": deadline.isoformat(),
+            })
+        articles.append(Article(
+            source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id,
+            title=title,
+            url=canonical_url(
+                "https://www.inpa.gov.it/bandi-e-avvisi/dettaglio-bando-avviso/"
+                f"?concorso_id={item_id}"
+            ),
+            published_at=published,
+            excerpt=". ".join(value for value in (description, f"Ente: {entity}" if entity else "", f"Sede: {location}") if value),
+            author="inPA", content_buckets=endpoint.content_buckets, metadata=metadata,
+        ))
+        if len(articles) >= limit:
+            break
+    return articles
+
+
+CPI_MONTHS = {
+    "GEN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAG": 5, "GIU": 6,
+    "LUG": 7, "AGO": 8, "SET": 9, "OTT": 10, "NOV": 11, "DIC": 12,
+}
+
+
+def _cpi_publication_date(value: str) -> datetime:
+    match = re.search(r"(\d{1,2})-([A-Z]{3})-(\d{4})", _html_text(value).upper())
+    if not match or match.group(2) not in CPI_MONTHS:
+        return datetime.now(timezone.utc)
+    return datetime(
+        int(match.group(3)), CPI_MONTHS[match.group(2)], int(match.group(1)),
+        tzinfo=ROME,
+    ).astimezone(timezone.utc)
+
+
+def _pdf_text(payload: bytes) -> str:
+    try:
+        from pypdf import PdfReader
+        return "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(payload)).pages)
+    except Exception as exc:
+        raise RetrievalError(f"Impossibile leggere l'avviso PDF del CPI: {exc}") from exc
+
+
+def _cpi_articles(document: str, endpoint: Endpoint, limit: int, timeout: float) -> list[Article]:
+    heading = re.search(
+        r"<h5\b[^>]*>\s*CENTRO\s+PER\s+L(?:'|&#0*39;|&apos;)IMPIEGO\s+DI\s+SIRACUSA\s*</h5>",
+        document, flags=re.I,
+    )
+    if not heading:
+        return []
+    following = document[heading.end():]
+    next_heading = re.search(r"<h5\b", following, flags=re.I)
+    section = following[:next_heading.start()] if next_heading else following
+    attachments: list[tuple[datetime, str, str]] = []
+    for block in re.findall(r"<div\b[^>]*class=[\"'][^\"']*media-document[^\"']*[\"'][^>]*>(.*?)</div>\s*</div>", section, flags=re.I | re.S):
+        link = re.search(r"<a\b[^>]*href=[\"']([^\"']+\.pdf)[\"'][^>]*>(.*?)</a>", block, flags=re.I | re.S)
+        description = _html_text(block)
+        if not link or "avvis" not in description.lower() or "chiamata" not in description.lower():
+            continue
+        if any(term in description.lower() for term in ("graduatoria", "errata corrige")):
+            continue
+        attachments.append((
+            _cpi_publication_date(description),
+            urljoin(endpoint.url, html.unescape(link.group(1))),
+            _html_text(link.group(2)),
+        ))
+    articles: list[Article] = []
+    for published, url, label in sorted(attachments, reverse=True)[:4]:
+        try:
+            text = _pdf_text(_download(url, timeout=timeout, accept="application/pdf,*/*;q=0.5"))
+        except RetrievalError:
+            continue
+        if "CENTRO PER L'IMPIEGO DI SIRACUSA" not in text.upper():
+            continue
+        deadline = _deadline_from_text(text)
+        if deadline is None:
+            range_match = re.search(
+                r"(?:PRESENTAZIONE\s+(?:DELLE\s+)?(?:CANDIDATURE|ISTANZ[AE])|PUBBLICAZIONE)"
+                r".{0,120}?DAL\s+(\d{2}/\d{2}/\d{4})\s+AL\s+(\d{2}/\d{2}/\d{4})",
+                text, flags=re.I | re.S,
+            )
+            if range_match:
+                deadline = _parse_optional_local_date(range_match.group(2))
+        locations = sorted(city.title() for city in LOCAL_WORK_CITIES if re.search(
+            rf"\b{re.escape(city)}\b", text, flags=re.I,
+        ))
+        metadata = {
+            "work_location": ", ".join(locations) or "Provincia di Siracusa",
+            "opportunity_location_verified": "true",
+            "opportunity_location_reason": "Avviso del Centro per l'impiego di Siracusa",
+            "source_posting_id": canonical_url(url), "opportunity_status": "open",
+            "opportunity_detail_complete": "true", "eligibility": "Collocamento mirato L. 68/99",
+        }
+        if deadline is not None:
+            metadata.update({
+                "date_label": "Scadenza", "reference_date": deadline.isoformat(),
+                "opportunity_deadline": deadline.isoformat(),
+            })
+        location_text = ", ".join(locations[:6]) or "provincia di Siracusa"
+        excerpt = (
+            "Avviso riservato agli iscritti al collocamento mirato ai sensi della L. 68/99. "
+            f"Le posizioni riguardano {location_text}."
+        )
+        articles.append(Article(
+            source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id,
+            title="CPI Siracusa: offerte di lavoro del collocamento mirato",
+            url=canonical_url(url), published_at=published, excerpt=excerpt,
+            author="Centro per l'impiego di Siracusa", content_buckets=endpoint.content_buckets,
+            metadata=metadata,
+        ))
+        if len(articles) >= limit:
+            break
+    return articles
+
+
 def retrieve_html(endpoint: Endpoint, limit: int = 30, timeout: float = 15.0) -> list[Article]:
-    document = _download(endpoint.url, timeout=timeout, accept="text/html,application/xhtml+xml;q=0.9,*/*;q=0.5").decode("utf-8", errors="replace")
     host = urlsplit(endpoint.url).netloc.lower()
+    if "inpa.gov.it" in host:
+        return _prepare_opportunities(endpoint, _inpa_articles(endpoint, limit, timeout), timeout)
+    document = _download(endpoint.url, timeout=timeout, accept="text/html,application/xhtml+xml;q=0.9,*/*;q=0.5").decode("utf-8", errors="replace")
+    if "randstad.it" in host:
+        return _prepare_opportunities(endpoint, _randstad_articles(document, endpoint, limit), timeout)
+    if "gigroup.it" in host:
+        return _prepare_opportunities(endpoint, _gigroup_articles(document, endpoint, limit), timeout)
+    if "synergie-italia.it" in host:
+        return _prepare_opportunities(endpoint, _synergie_articles(document, endpoint, limit, timeout), timeout)
+    if "regione.sicilia.it" in host:
+        return _prepare_opportunities(endpoint, _cpi_articles(document, endpoint, limit, timeout), timeout)
     if "allevents.in" in host:
         return _allevents_articles(document, endpoint, limit)
     if "eventisiracusa.base44.app" in host:
