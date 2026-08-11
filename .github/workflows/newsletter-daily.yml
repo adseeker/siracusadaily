@@ -47,6 +47,7 @@ jobs:
       SIRACUSA_IMAGE_UPLOAD_URL: https://siracusadaily.com/.netlify/functions/newsletter-image
       SIRACUSA_IMAGE_PUBLIC_BASE: https://siracusadaily.com/.netlify/functions/newsletter-image
       SIRACUSA_IMAGE_UPLOAD_TOKEN: ${{ secrets.SIRACUSA_IMAGE_UPLOAD_TOKEN }}
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
 
     steps:
       - name: Scarica il motore
@@ -102,6 +103,19 @@ jobs:
             --facebook-output-dir runtime \
             --skip-existing-brevo-date \
             "$delivery_option" 2>&1 | tee runtime/run.log
+
+      - name: Rende il recap disponibile su Notion
+        if: github.event_name == 'schedule' || inputs.mode == 'full'
+        continue-on-error: true
+        run: |
+          if [[ -z "${NOTION_TOKEN:-}" ]]; then
+            echo "::warning::NOTION_TOKEN non configurato: recap disponibile soltanto negli artifact."
+            exit 0
+          fi
+          siracusa-daily notion-publish \
+            --page-id 3b9deac1-b022-8196-8a55-d77a97e81cf9 \
+            --post runtime/facebook_post.txt \
+            --sources runtime/facebook_sources.txt
 
       - name: Consolida il database
         if: always() && (github.event_name == 'schedule' || inputs.mode == 'full')

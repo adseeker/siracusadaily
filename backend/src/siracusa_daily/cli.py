@@ -25,6 +25,7 @@ from .database import (
 from .pipeline import build_newsletter, ingest
 from .editorial import DEFAULT_MODEL, EditorialError
 from .mailer import MailerError, send_html
+from .notion import NotionPublishError, publish_facebook_recap
 
 PROJECT = Path(__file__).resolve().parents[2]
 
@@ -46,6 +47,10 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--database", type=Path, default=PROJECT / "data/siracusa_daily.db")
     commands = root.add_subparsers(dest="command", required=True)
     commands.add_parser("init")
+    notion = commands.add_parser("notion-publish")
+    notion.add_argument("--page-id", required=True)
+    notion.add_argument("--post", type=Path, required=True)
+    notion.add_argument("--sources", type=Path, required=True)
     preflight = commands.add_parser("preflight")
     preflight.add_argument("--date", type=date.fromisoformat)
     preflight.add_argument("--brevo-list", default=DEFAULT_LIST_NAME)
@@ -106,6 +111,20 @@ def main() -> None:
     if args.command == "init":
         connect(args.database).close()
         print(f"Database inizializzato: {args.database}")
+        return
+    if args.command == "notion-publish":
+        try:
+            result = publish_facebook_recap(
+                args.page_id,
+                args.post.read_text(encoding="utf-8"),
+                args.sources.read_text(encoding="utf-8"),
+            )
+        except (NotionPublishError, OSError) as exc:
+            raise SystemExit(f"Recap Notion non pubblicato: {exc}") from exc
+        print(
+            f"Recap Notion aggiornato: pagina {result.page_id}; "
+            f"{result.replaced_blocks} blocchi precedenti sostituiti."
+        )
         return
     if args.command == "preflight":
         if not os.getenv("OPENAI_API_KEY"):

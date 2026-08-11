@@ -18,6 +18,7 @@ Il motore scrive nel log:
 - warning immagini;
 - numero di contenuti e percorsi dei file Facebook;
 - warning non bloccanti del renderer Facebook;
+- esito dell'aggiornamento della pagina operativa Notion;
 - ID del run editoriale;
 - numero di contenuti finali;
 - writer e percorso output;
@@ -51,5 +52,6 @@ Il checkpoint SQLite e il salvataggio del branch operativo vengono eseguiti con 
 - I warning dei singoli endpoint non producono alert separati.
 - La copertura immagini è disponibile nei log ma non ancora come KPI storico in dashboard.
 - Le motivazioni di quarantena sono nel database, non visualizzate nella dashboard.
+- Gli errori Notion restano warning di workflow e non generano issue dedicate.
 
 [← Precedente: Publishing e operations](06-publishing-operations.md) · [Successivo: Analytics →](08-analytics.md)

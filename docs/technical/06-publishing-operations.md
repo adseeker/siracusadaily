@@ -48,7 +48,12 @@ Il comando manuale `workflow_dispatch` in modalità `full` crea sempre una bozza
 ## Pubblicazione Facebook, fase di validazione
 
 Ogni run completo allega all'artifact GitHub `facebook_post.txt` e
-`facebook_sources.txt`. La procedura operativa è deliberatamente manuale:
+`facebook_sources.txt` e aggiorna la pagina Notion fissa
+`Facebook — copia e incolla`. La pagina espone il post e il primo commento in due
+blocchi separati; il contenuto del giorno precedente viene sostituito solo dopo
+che quello nuovo è stato inserito.
+
+La procedura operativa è deliberatamente manuale:
 
 1. attendere che l'edizione email sia stata inviata;
 2. pubblicare il contenuto di `facebook_post.txt` come post nativo;
@@ -59,6 +64,11 @@ Il recap è più compatto della newsletter e viene pubblicato dopo l'email per n
 sostituire il valore del canale proprietario. Non sono presenti token Facebook,
 API Meta o sistemi di autopubblicazione. L'automazione verrà valutata soltanto
 dopo la validazione editoriale del formato.
+
+L'aggiornamento Notion richiede il secret GitHub `NOTION_TOKEN`. La connessione
+interna Notion deve avere accesso alla pagina operativa e capacità di lettura e
+aggiornamento dei contenuti. Un errore Notion non blocca né l'email né gli
+artifact; il workflow lo espone come warning.
 
 ## Iscrizione utenti
 

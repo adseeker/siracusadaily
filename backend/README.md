@@ -37,6 +37,12 @@ newsletter, poi si copia `facebook_post.txt` in un post Facebook e infine
 un errore nella produzione di questi file genera un warning senza bloccare la
 campagna email.
 
+Per l'uso quotidiano non è necessario aprire gli artifact. Dopo il run, GitHub
+aggiorna la pagina Notion fissa `Facebook — copia e incolla`, che mostra i due
+testi in blocchi separati. Per abilitarla, condividere la pagina con una
+connessione interna Notion dotata di lettura e aggiornamento dei contenuti, quindi
+salvare il relativo token come secret GitHub `NOTION_TOKEN`.
+
 Il link di iscrizione può essere personalizzato con
 `SIRACUSA_FACEBOOK_SIGNUP_URL`; il valore predefinito include i parametri UTM per
 il recap organico.

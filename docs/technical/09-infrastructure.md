@@ -22,6 +22,7 @@ Stato: sistema operativo in produzione
 | PDF | pypdf | Avvisi del Centro per l'impiego |
 | Dominio | `siracusadaily.com` | Sito, mittente e identità email |
 | Facebook | Pubblicazione manuale, nessuna API | Validazione del recap organico |
+| Notion | API tramite connessione interna | Superficie quotidiana di copia e incolla |
 
 ## Deploy web
 
@@ -70,6 +71,7 @@ Il database viene sottoposto a checkpoint WAL, committato dal bot e usato dal ru
 | `OPENAI_API_KEY` | Generazione editoriale |
 | `BREVO_API_KEY` | Preflight, creazione e programmazione campagna |
 | `SIRACUSA_IMAGE_UPLOAD_TOKEN` | Upload protetto delle thumbnail |
+| `NOTION_TOKEN` | Aggiornamento della pagina operativa del recap Facebook |
 
 La variabile repository `SIRACUSA_AUTO_SEND_ENABLED` non contiene credenziali e agisce da kill switch dell'invio automatico. Deve valere esattamente `true` per i run schedulati.
 
@@ -118,6 +120,8 @@ L'acquisizione delle fonti non usa API commerciali aggiuntive.
 
 Il recap Facebook non aggiunge costi AI o infrastrutturali: riusa l'output
 editoriale della newsletter, viene renderizzato localmente e pubblicato a mano.
+Anche l'aggiornamento della pagina Notion riusa gli stessi file e non richiede
+ulteriori servizi a pagamento.
 
 ## Backup e retention
 
@@ -132,6 +136,8 @@ editoriale della newsletter, viene renderizzato localmente e pubblicato a mano.
 - SQLite e branch di stato sono adatti a un singolo processo, non a più worker editoriali concorrenti.
 - Il retrieval HTML dipende dalla struttura pubblica dei siti e può richiedere manutenzione quando cambia il markup.
 - Le fonti social Meta e LinkedIn non sono automatizzate.
+- La disponibilità immediata del recap su Notion dipende dal token e dai permessi
+  della connessione interna; gli artifact GitHub restano il fallback tecnico.
 - Le immagini possono mancare quando una fonte blocca il download o non espone metadati idonei.
 - I run schedulati inviano automaticamente; la revisione umana preventiva è disponibile disattivando il kill switch o usando un run manuale.
 - Non esiste ancora un pannello editoriale per modificare la selezione prima della creazione della bozza.

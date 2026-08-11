@@ -22,7 +22,8 @@ flowchart LR
     I --> J["Campagna Brevo"]
     J --> K["Invio programmato con kill switch"]
     G --> L["Recap e fonti Facebook"]
-    L --> M["Pubblicazione manuale dopo l'email"]
+    L --> M["Pagina operativa Notion"]
+    M --> N["Pubblicazione manuale dopo l'email"]
 ```
 
 ## Indice
