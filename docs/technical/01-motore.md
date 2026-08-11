@@ -39,6 +39,7 @@ Il backend è un package Python chiamato `siracusa-daily`, compatibile con Pytho
 | `editorial.py` | Pacchetto evidenze, chiamata OpenAI, validazioni, riparazioni e oggetto |
 | `images.py` | Estrazione, ottimizzazione e pubblicazione delle thumbnail |
 | `writer.py` | Rendering deterministico Markdown o HTML |
+| `facebook.py` | Recap testuale e blocco fonti per la pubblicazione manuale su Facebook |
 | `brevo.py` | Controllo campagne, risoluzione lista, creazione e programmazione Brevo |
 | `pipeline.py` | Orchestrazione di ingestione e costruzione dell'edizione |
 | `cli.py` | Interfaccia operativa e controlli di pubblicazione |
@@ -66,6 +67,7 @@ limite opportunità: 6
 minimo contenuti pubblicabili: 6
 output: HTML
 destinazione: campagna Brevo programmata nei run automatici, bozza nei run manuali
+output collaterale: facebook_post.txt e facebook_sources.txt
 ```
 
 [Successivo: Fonti e acquisizione →](02-fonti-acquisizione.md)

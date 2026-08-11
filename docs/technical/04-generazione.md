@@ -128,4 +128,21 @@ La risorsa:
 
 L'endpoint Netlify accetta in upload soltanto JPEG autenticati, con chiave conforme e massimo 300 KB. Le immagini pubbliche hanno cache annuale e URL stabile. Un 403 della fonte, un'immagine assente o un errore di upload produce un warning e omette soltanto quella thumbnail.
 
+## Recap Facebook
+
+Il recap Facebook riusa headline, summary, categoria e associazione alla fonte già
+prodotte e validate per la newsletter. Non effettua una nuova chiamata OpenAI e
+non chiede al modello di generare link o attribuzioni.
+
+Il renderer deterministico `facebook.py` seleziona fino a 7 contenuti, cercando
+prima una rappresentanza delle sezioni presenti e usando il punteggio editoriale
+per completare gli eventuali posti liberi. Produce:
+
+- `facebook_post.txt`, con titolo, sintesi e fonte per ciascun elemento, senza URL;
+- `facebook_sources.txt`, con la stessa numerazione, i link originali e il link
+  tracciato per iscriversi a SiracusaDaily.
+
+Il formato implementato corrisponde alla variante A dell'esperimento editoriale.
+La variante con un'unica pagina web quotidiana non è inclusa in questa fase.
+
 [← Precedente: Processing](03-processing.md) · [Successivo: Quality Assurance →](05-quality-assurance.md)

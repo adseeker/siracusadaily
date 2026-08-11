@@ -99,6 +99,7 @@ jobs:
             --opportunity-limit 6 \
             --minimum-items 6 \
             --output runtime/newsletter.html \
+            --facebook-output-dir runtime \
             --skip-existing-brevo-date \
             "$delivery_option" 2>&1 | tee runtime/run.log
 
@@ -136,6 +137,8 @@ jobs:
           name: newsletter-${{ github.run_id }}
           path: |
             runtime/newsletter.html
+            runtime/facebook_post.txt
+            runtime/facebook_sources.txt
             runtime/run.log
           if-no-files-found: warn
           retention-days: 7

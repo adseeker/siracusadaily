@@ -16,6 +16,8 @@ Il motore scrive nel log:
 - warning per singolo endpoint;
 - immagini tentate, pubblicate e saltate;
 - warning immagini;
+- numero di contenuti e percorsi dei file Facebook;
+- warning non bloccanti del renderer Facebook;
 - ID del run editoriale;
 - numero di contenuti finali;
 - writer e percorso output;
@@ -33,7 +35,9 @@ Ogni run espone stato e durata dei passaggi:
 - persistenza;
 - archiviazione.
 
-HTML e log vengono conservati come artifact per 7 giorni. In caso di fallimento viene aperta una issue GitHub con data e collegamento al run; per la stessa data non viene aperta una seconda issue identica.
+HTML, log, post Facebook e relativo blocco fonti vengono conservati come artifact
+per 7 giorni. In caso di fallimento viene aperta una issue GitHub con data e
+collegamento al run; per la stessa data non viene aperta una seconda issue identica.
 
 Il timeout massimo del job è 55 minuti.
 

@@ -5,7 +5,7 @@ Stato: sistema operativo in produzione, con programmazione automatica delle camp
 
 ## Panoramica
 
-SiracusaDaily è un sistema editoriale automatizzato che raccoglie informazioni pubbliche su Siracusa e provincia, le normalizza, filtra i contenuti non locali o non affidabili, deduplica le notizie, seleziona un'edizione equilibrata, genera testi editoriali in italiano e programma una campagna email su Brevo.
+SiracusaDaily è un sistema editoriale automatizzato che raccoglie informazioni pubbliche su Siracusa e provincia, le normalizza, filtra i contenuti non locali o non affidabili, deduplica le notizie, seleziona un'edizione equilibrata, genera testi editoriali in italiano, programma una campagna email su Brevo e prepara un recap Facebook per la pubblicazione manuale.
 
 La landing page, la dashboard operativa e il servizio immagini sono pubblicati su Netlify. Il motore editoriale viene eseguito da GitHub Actions e conserva lo storico operativo in un database SQLite su un branch Git separato.
 
@@ -21,6 +21,8 @@ flowchart LR
     H --> I["Immagini su Netlify Blobs"]
     I --> J["Campagna Brevo"]
     J --> K["Invio programmato con kill switch"]
+    G --> L["Recap e fonti Facebook"]
+    L --> M["Pubblicazione manuale dopo l'email"]
 ```
 
 ## Indice

@@ -49,6 +49,7 @@ fi
     --opportunity-limit 6 \
     --minimum-items 6 \
     --output "$RUNTIME_DIR/output/newsletter.html" \
+    --facebook-output-dir "$RUNTIME_DIR/output" \
     --skip-existing-brevo-date \
     --brevo-draft
   print "[$(date -Iseconds)] Pipeline completata"

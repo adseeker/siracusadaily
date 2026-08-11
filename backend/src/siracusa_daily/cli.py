@@ -75,6 +75,7 @@ def parser() -> argparse.ArgumentParser:
     build.add_argument("--brevo-list", default=DEFAULT_LIST_NAME)
     build.add_argument("--subject")
     build.add_argument("--minimum-items", type=int, default=0)
+    build.add_argument("--facebook-output-dir", type=Path)
     run = commands.add_parser("run")
     run.add_argument("--output", type=Path, default=PROJECT / "output/newsletter-draft.md")
     run.add_argument("--date", type=date.fromisoformat)
@@ -96,6 +97,7 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--subject")
     run.add_argument("--minimum-items", type=int, default=0)
     run.add_argument("--skip-existing-brevo-date", action="store_true")
+    run.add_argument("--facebook-output-dir", type=Path)
     return root
 
 
@@ -223,6 +225,7 @@ def main() -> None:
             unsubscribe_url="{{ unsubscribe }}" if brevo_delivery else None,
             event_limit=args.event_limit,
             opportunity_limit=args.opportunity_limit,
+            facebook_output_dir=args.facebook_output_dir,
         )
     except EditorialError as exc:
         raise SystemExit(f"Writer OpenAI non disponibile: {exc}") from exc

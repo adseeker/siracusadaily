@@ -21,6 +21,7 @@ Stato: sistema operativo in produzione
 | Immagini | Pillow e Netlify Blobs | Thumbnail e CDN |
 | PDF | pypdf | Avvisi del Centro per l'impiego |
 | Dominio | `siracusadaily.com` | Sito, mittente e identità email |
+| Facebook | Pubblicazione manuale, nessuna API | Validazione del recap organico |
 
 ## Deploy web
 
@@ -72,6 +73,9 @@ Il database viene sottoposto a checkpoint WAL, committato dal bot e usato dal ru
 
 La variabile repository `SIRACUSA_AUTO_SEND_ENABLED` non contiene credenziali e agisce da kill switch dell'invio automatico. Deve valere esattamente `true` per i run schedulati.
 
+`SIRACUSA_FACEBOOK_SIGNUP_URL` è opzionale e non contiene credenziali: permette di
+personalizzare il link tracciato inserito nel primo commento del recap.
+
 ## Variabili Netlify
 
 | Variabile | Utilizzo |
@@ -112,10 +116,13 @@ Le superfici di costo sono:
 
 L'acquisizione delle fonti non usa API commerciali aggiuntive.
 
+Il recap Facebook non aggiunge costi AI o infrastrutturali: riusa l'output
+editoriale della newsletter, viene renderizzato localmente e pubblicato a mano.
+
 ## Backup e retention
 
 - Database operativo: storico Git del branch `automation-state`;
-- HTML e log: artifact GitHub per 7 giorni;
+- HTML, log e materiali Facebook: artifact GitHub per 7 giorni;
 - campagne e statistiche: conservazione Brevo;
 - immagini: Netlify Blobs, senza pulizia automatica attualmente configurata;
 - codice e configurazione: branch `main` del repository privato.

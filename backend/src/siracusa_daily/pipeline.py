@@ -37,6 +37,12 @@ from .retrieval import RetrievalError, retrieve_html, retrieve_rss
 from .selection import select_stories
 from .writer import render_html, render_markdown, save_html, save_markdown
 from .editorial import DEFAULT_MODEL, generate_editorial
+from .facebook import (
+    DEFAULT_SIGNUP_URL,
+    FacebookOutputError,
+    render_facebook_outputs,
+    save_facebook_outputs,
+)
 from .images import publish_newsletter_images
 
 
@@ -100,6 +106,7 @@ def build_newsletter(
     lookback_hours: int = 72, limit: int = 8, writer_mode: str = "openai", model: str = DEFAULT_MODEL,
     unsubscribe_url: str | None = None, event_limit: int = 8,
     opportunity_limit: int = 6,
+    facebook_output_dir: Path | None = None,
 ) -> tuple[int, int, str, str]:
     edition_date = edition_date or date.today()
     sources = load_sources(source_map)
@@ -181,6 +188,32 @@ def build_newsletter(
         else:
             content = render_markdown(edition_date, clusters, sources, editorial_items, writer_used)
             save_markdown(output, content)
+        if facebook_output_dir is not None:
+            try:
+                if writer_used != "openai":
+                    raise FacebookOutputError(
+                        "il recap richiede contenuti validati dal writer OpenAI"
+                    )
+                facebook_outputs = render_facebook_outputs(
+                    clusters,
+                    sources,
+                    editorial_items,
+                    limit=7,
+                    signup_url=os.getenv(
+                        "SIRACUSA_FACEBOOK_SIGNUP_URL",
+                        DEFAULT_SIGNUP_URL,
+                    ),
+                )
+                post_path, sources_path = save_facebook_outputs(
+                    facebook_output_dir,
+                    facebook_outputs,
+                )
+                print(
+                    f"Facebook: {facebook_outputs.item_count} contenuti -> "
+                    f"{post_path}; {sources_path}"
+                )
+            except (FacebookOutputError, OSError) as exc:
+                print(f"WARN FACEBOOK {exc}")
         items = [(cluster.representative, cluster.key, cluster.score) for cluster in clusters]
         excluded_items = [
             (cluster.representative, cluster.key, exclusions[cluster.key])

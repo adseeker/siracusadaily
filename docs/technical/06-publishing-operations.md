@@ -45,6 +45,21 @@ L'orario ordinario è 08:30, `Europe/Rome`. Se la produzione termina dopo le 08:
 
 Il comando manuale `workflow_dispatch` in modalità `full` crea sempre una bozza e non programma l'invio. In questo modo i test o le rigenerazioni manuali non possono spedire accidentalmente una campagna.
 
+## Pubblicazione Facebook, fase di validazione
+
+Ogni run completo allega all'artifact GitHub `facebook_post.txt` e
+`facebook_sources.txt`. La procedura operativa è deliberatamente manuale:
+
+1. attendere che l'edizione email sia stata inviata;
+2. pubblicare il contenuto di `facebook_post.txt` come post nativo;
+3. pubblicare immediatamente `facebook_sources.txt` come primo commento;
+4. verificare che numerazione, fonti e collegamenti corrispondano.
+
+Il recap è più compatto della newsletter e viene pubblicato dopo l'email per non
+sostituire il valore del canale proprietario. Non sono presenti token Facebook,
+API Meta o sistemi di autopubblicazione. L'automazione verrà valutata soltanto
+dopo la validazione editoriale del formato.
+
 ## Iscrizione utenti
 
 La landing page incorpora un form Brevo diretto con:

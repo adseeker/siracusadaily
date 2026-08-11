@@ -8,10 +8,11 @@ Stato: sistema operativo in produzione
 
 ## Test automatici
 
-Il repository contiene attualmente 94 test automatici eseguiti prima di ogni run:
+Il repository contiene attualmente 99 test automatici eseguiti prima di ogni run:
 
 - 84 test di pipeline;
-- 10 test dedicati alle immagini.
+- 10 test dedicati alle immagini;
+- 5 test dedicati al recap Facebook.
 
 La suite copre, tra le altre cose:
 
@@ -31,7 +32,8 @@ La suite copre, tra le altre cose:
 - protezione dell'oggetto sensibile;
 - rendering HTML, ordine sezioni, date e scadenze;
 - creazione della campagna Brevo, programmazione e idempotenza;
-- estrazione, compressione e upload delle thumbnail.
+- estrazione, compressione e upload delle thumbnail;
+- selezione, attribuzione, separazione dei link e salvataggio del recap Facebook.
 
 Se un test fallisce, GitHub Actions non avvia il motore editoriale.
 
@@ -60,6 +62,7 @@ I run schedulati programmano l'invio soltanto dopo questi controlli. I run manua
 | Candidato AI non valido | Correzione mirata; poi esclusione del solo candidato |
 | OpenAI non disponibile dopo i retry | Run fallito, nessuna campagna |
 | Immagine assente, bloccata o non valida | Thumbnail omessa, campagna invariata |
+| Output Facebook non disponibile | Warning, campagna email invariata |
 | Brevo non raggiungibile nel preflight | Run interrotto prima della produzione |
 | Campagna già esistente | Run ignorato senza costi OpenAI |
 | Meno di 6 contenuti | Campagna bloccata |

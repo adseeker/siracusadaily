@@ -15,10 +15,31 @@ Il workflow:
 - verifica direttamente su Brevo che l'edizione non esista già;
 - conserva il database nel branch privato `automation-state`;
 - ritenta le chiamate OpenAI in caso di errori temporanei;
-- salva HTML e log per 7 giorni;
+- salva HTML, log e materiali Facebook per 7 giorni;
 - apre una issue GitHub se fallisce;
 - programma automaticamente su Brevo la campagna prodotta dai run schedulati;
 - mantiene i run manuali in modalità bozza.
+
+## Recap Facebook
+
+Ogni run completo prodotto dal writer OpenAI genera anche due file deterministici,
+senza una seconda chiamata AI:
+
+- `facebook_post.txt`: post nativo con un massimo di 7 contenuti, sintesi breve e
+  fonte adiacente, senza URL nel corpo;
+- `facebook_sources.txt`: primo commento con fonti numerate, URL e invito
+  all'iscrizione alla newsletter.
+
+I file sono inclusi nell'artifact `newsletter-<run id>` di GitHub Actions. La
+pubblicazione resta manuale nella fase di validazione: prima viene inviata la
+newsletter, poi si copia `facebook_post.txt` in un post Facebook e infine
+`facebook_sources.txt` nel primo commento. Nessuna API Facebook è configurata e
+un errore nella produzione di questi file genera un warning senza bloccare la
+campagna email.
+
+Il link di iscrizione può essere personalizzato con
+`SIRACUSA_FACEBOOK_SIGNUP_URL`; il valore predefinito include i parametri UTM per
+il recap organico.
 
 La campagna ordinaria viene programmata alle 08:30, ora di Roma. Se la produzione
 termina dopo le 08:15, l'invio viene spostato a 15 minuti dal completamento e
@@ -108,6 +129,7 @@ Il run:
 
 - conserva il database in `backend/runtime/data/`;
 - salva l’HTML in `backend/runtime/output/`;
+- salva `facebook_post.txt` e `facebook_sources.txt` in `backend/runtime/output/`;
 - registra i log in `backend/runtime/logs/`;
 - crea una bozza nella lista `Iscritti SiracusaDaily`;
 - non invia automaticamente la campagna;
