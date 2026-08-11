@@ -273,6 +273,29 @@ def _event_metadata(start: datetime, end: datetime | None = None, **values: str)
     return metadata
 
 
+def _local_wall_time_from_epoch(value: str | int | float) -> datetime | None:
+    """Interpret aggregator timestamps that encode local wall time as UTC seconds."""
+    try:
+        naive = datetime.fromtimestamp(float(value), tz=timezone.utc).replace(tzinfo=None)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return naive.replace(tzinfo=ROME).astimezone(timezone.utc)
+
+
+def _dated_local_value(date_value: str, time_value: str = "", *, end_of_day: bool = False) -> datetime | None:
+    date_value = (date_value or "").strip()
+    time_value = (time_value or "").strip()
+    if not date_value:
+        return None
+    if time_value:
+        return _parse_optional_local_date(f"{date_value} {time_value}")
+    parsed = _parse_optional_local_date(date_value)
+    if parsed is not None and end_of_day:
+        local = parsed.astimezone(ROME).replace(hour=23, minute=59, second=59)
+        return local.astimezone(timezone.utc)
+    return parsed
+
+
 def _json_nodes(value):
     if isinstance(value, dict):
         yield value
@@ -281,6 +304,153 @@ def _json_nodes(value):
     elif isinstance(value, list):
         for child in value:
             yield from _json_nodes(child)
+
+
+def _allevents_articles(document: str, endpoint: Endpoint, limit: int) -> list[Article]:
+    events: list = []
+    for marker in re.finditer(r"\b(?:_this\.)?events_data\s*=\s*", document):
+        try:
+            candidate, _ = json.JSONDecoder().raw_decode(document[marker.end():])
+        except (json.JSONDecodeError, TypeError):
+            continue
+        # The page initializes the same variable to [] several times before
+        # assigning the actual dataset. Keep the richest valid assignment.
+        if isinstance(candidate, list) and len(candidate) > len(events):
+            events = candidate
+    if not events:
+        return []
+
+    articles: list[Article] = []
+    seen: set[str] = set()
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        title = _html_text(str(event.get("eventname_raw") or event.get("eventname") or ""))
+        url = canonical_url(str(event.get("event_url") or event.get("share_url") or ""))
+        start = _local_wall_time_from_epoch(event.get("start_time", ""))
+        if not title or not url.startswith("http") or start is None or url in seen:
+            continue
+        seen.add(url)
+        end = _local_wall_time_from_epoch(event.get("end_time", ""))
+        if end is not None and end <= start:
+            end = None
+        venue = event.get("venue") if isinstance(event.get("venue"), dict) else {}
+        location = _html_text(str(
+            venue.get("full_address") or event.get("location_raw") or event.get("location") or ""
+        ))
+        organizer = event.get("organizer") if isinstance(event.get("organizer"), dict) else {}
+        organizer_name = _html_text(str(organizer.get("name") or "AllEvents"))
+        description = _html_text(str(event.get("short_description") or ""))
+        excerpt = " — ".join(value for value in (description, location) if value)
+        articles.append(Article(
+            source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id, title=title,
+            url=url, published_at=start, excerpt=excerpt, author=organizer_name,
+            content_buckets=endpoint.content_buckets,
+            metadata=_event_metadata(start, end, location=location, organizer=organizer_name),
+        ))
+    return sorted(articles, key=lambda article: article.published_at)[:limit]
+
+
+def _eventi_siracusa_articles(payload: str, endpoint: Endpoint, limit: int) -> list[Article]:
+    try:
+        events = json.loads(payload)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    if not isinstance(events, list):
+        return []
+
+    articles: list[Article] = []
+    for event in events:
+        if not isinstance(event, dict) or event.get("published") is False:
+            continue
+        title = _html_text(str(event.get("title") or ""))
+        event_id = str(event.get("id") or "").strip()
+        start = _dated_local_value(str(event.get("start_date") or ""), str(event.get("start_time") or ""))
+        if not title or not event_id or start is None:
+            continue
+        end = _dated_local_value(
+            str(event.get("end_date") or ""), str(event.get("end_time") or ""), end_of_day=True,
+        )
+        if end is not None and end < start:
+            end = None
+        location = " · ".join(value for value in (
+            _html_text(str(event.get("location_name") or "")),
+            _html_text(str(event.get("location_address") or "")),
+        ) if value)
+        description = _html_text(str(event.get("short_description") or ""))
+        if not description:
+            description = _html_text(str(event.get("long_description") or ""))
+        excerpt = " — ".join(value for value in (description, location) if value)
+        url = canonical_url(f"{endpoint.url.rstrip('/')}/?event={event_id}")
+        articles.append(Article(
+            source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id, title=title,
+            url=url, published_at=start, excerpt=excerpt, author="Eventi Siracusa",
+            content_buckets=endpoint.content_buckets,
+            metadata=_event_metadata(
+                start, end, location=location,
+                event_category=_html_text(str(event.get("category") or "")),
+            ),
+        ))
+    return sorted(articles, key=lambda article: article.published_at)[:limit]
+
+
+def _virgilio_articles(document: str, endpoint: Endpoint, limit: int) -> list[Article]:
+    blocks = re.findall(
+        r"<article\b[^>]*itemtype=[\"']http://schema\.org/Event[\"'][^>]*>(.*?)</article>\s*<style",
+        document, flags=re.I | re.S,
+    )
+    articles: list[Article] = []
+    seen: set[str] = set()
+    for block in blocks:
+        title_match = re.search(
+            r"<h2[^>]*itemprop=[\"']name[\"'][^>]*>.*?<a(?=[^>]*itemprop=[\"']url[\"'])[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>",
+            block, flags=re.I | re.S,
+        )
+        start_match = re.search(
+            r"<time[^>]*itemprop=[\"']startDate[\"'][^>]*datetime=[\"']([^\"']+)[\"']",
+            block, flags=re.I,
+        ) or re.search(
+            r"<time[^>]*datetime=[\"']([^\"']+)[\"'][^>]*itemprop=[\"']startDate[\"']",
+            block, flags=re.I,
+        )
+        if not title_match or not start_match:
+            continue
+        title = _html_text(title_match.group(2))
+        url = canonical_url(urljoin(endpoint.url, html.unescape(title_match.group(1))))
+        start = _parse_optional_local_date(start_match.group(1))
+        if not title or not url.startswith("http") or start is None or url in seen:
+            continue
+        seen.add(url)
+        end_match = re.search(
+            r"<time[^>]*(?:itemprop=[\"']endDate[\"'][^>]*datetime|datetime=[\"']([^\"']+)[\"'][^>]*itemprop=[\"']endDate[\"'])",
+            block, flags=re.I,
+        )
+        end = None
+        if end_match:
+            end_value = end_match.group(1)
+            if not end_value:
+                direct = re.search(
+                    r"<time[^>]*itemprop=[\"']endDate[\"'][^>]*datetime=[\"']([^\"']+)[\"']",
+                    block, flags=re.I,
+                )
+                end_value = direct.group(1) if direct else ""
+            end = _parse_optional_local_date(end_value)
+        description_match = re.search(
+            r"<p[^>]*itemprop=[\"']description[\"'][^>]*>(.*?)</p>", block, flags=re.I | re.S,
+        )
+        location_match = re.search(
+            r"<span[^>]*itemprop=[\"']name[\"'][^>]*>(.*?)</span>", block, flags=re.I | re.S,
+        )
+        description = _html_text(description_match.group(1)) if description_match else ""
+        location = _html_text(location_match.group(1)) if location_match else ""
+        excerpt = " — ".join(value for value in (description, location) if value)
+        articles.append(Article(
+            source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id, title=title,
+            url=url, published_at=start, excerpt=excerpt, author="Virgilio Eventi",
+            content_buckets=endpoint.content_buckets,
+            metadata=_event_metadata(start, end, location=location),
+        ))
+    return articles[:limit]
 
 
 def _eventbrite_articles(document: str, endpoint: Endpoint, limit: int) -> list[Article]:
@@ -457,6 +627,22 @@ def _concorsi_articles(document: str, endpoint: Endpoint, limit: int) -> list[Ar
 def retrieve_html(endpoint: Endpoint, limit: int = 30, timeout: float = 15.0) -> list[Article]:
     document = _download(endpoint.url, timeout=timeout, accept="text/html,application/xhtml+xml;q=0.9,*/*;q=0.5").decode("utf-8", errors="replace")
     host = urlsplit(endpoint.url).netloc.lower()
+    if "allevents.in" in host:
+        return _allevents_articles(document, endpoint, limit)
+    if "eventisiracusa.base44.app" in host:
+        app_match = re.search(r"data-app-id=[\"']([^\"']+)[\"']", document)
+        if not app_match:
+            raise RetrievalError(f"{endpoint.url}: identificativo pubblico del calendario non trovato")
+        data_url = urljoin(
+            endpoint.url,
+            f"/api/apps/{app_match.group(1)}/entities/Event?sort=-start_date&limit=200",
+        )
+        payload = _download(
+            data_url, timeout=timeout, accept="application/json;q=1.0,*/*;q=0.5",
+        ).decode("utf-8", errors="replace")
+        return _eventi_siracusa_articles(payload, endpoint, limit)
+    if "virgilio.it" in host:
+        return _virgilio_articles(document, endpoint, limit)
     if "eventbrite." in host:
         return _eventbrite_articles(document, endpoint, limit)
     if "comune.siracusa.it" in host:

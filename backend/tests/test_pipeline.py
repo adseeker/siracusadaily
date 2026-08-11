@@ -46,8 +46,9 @@ from siracusa_daily.mailer import MailerError, send_html
 from siracusa_daily.models import Article, Source, StoryCluster
 from siracusa_daily.models import Endpoint
 from siracusa_daily.retrieval import (
-    _asp_articles, _comune_articles, _concorsi_articles, _deadline_from_text,
-    _eventbrite_articles, _opportunity_detail_metadata,
+    _allevents_articles, _asp_articles, _comune_articles, _concorsi_articles,
+    _deadline_from_text, _eventbrite_articles, _eventi_siracusa_articles,
+    _opportunity_detail_metadata, _virgilio_articles,
 )
 from siracusa_daily.selection import cluster_articles, select_stories
 from siracusa_daily.text import canonical_url
@@ -91,6 +92,18 @@ class PipelineTests(unittest.TestCase):
         left.excerpt = "Cna Siracusa propone protocolli automatici, uso di Comiso e trasporti sostitutivi per l'aeroporto di Catania."
         right = self.article("Etna e aeroporto di Catania, Cna Siracusa: serve un piano straordinario", "SRC-B")
         right.excerpt = "La proposta prevede trasporti sostitutivi, priorità a Comiso e chiusure limitate durante l'eruzione."
+        self.assertEqual(len(cluster_articles([left, right])), 1)
+
+    def test_event_deduplication_uses_date_location_and_distinctive_title(self) -> None:
+        left = self.article("Artieri Mercato Creativo", "SRC-A")
+        right = self.article("Artièri - Festival delle arti e dei mestieri", "SRC-B")
+        for article in (left, right):
+            article.published_at = datetime(2026, 8, 1, tzinfo=timezone.utc)
+            article.metadata = {
+                "date_label": "Inizio",
+                "event_start": datetime(2026, 8, 1, tzinfo=timezone.utc).isoformat(),
+                "location": "Tonnara di Marzamemi, Pachino (SR)",
+            }
         self.assertEqual(len(cluster_articles([left, right])), 1)
 
     def test_source_cap(self) -> None:
@@ -777,6 +790,54 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(rows[0].published_at.astimezone(ZoneInfo("Europe/Rome")).strftime("%H:%M"), "18:30")
         self.assertIn("event_start", rows[0].metadata)
         self.assertIn("event_end", rows[0].metadata)
+
+    def test_allevents_embedded_dataset_parser(self) -> None:
+        encoded_wall_time = int(datetime(2026, 8, 12, 18, 30, tzinfo=timezone.utc).timestamp())
+        document = f'''<script>_this.events_data = [{{
+          "event_id":"1", "eventname_raw":"Concerto &amp; teatro", "start_time":"{encoded_wall_time}",
+          "end_time":"{encoded_wall_time}", "event_url":"https://allevents.in/siracusa/test/1?ref=city",
+          "venue":{{"full_address":"Ortigia, Siracusa, Italy"}},
+          "organizer":{{"name":"Associazione locale"}}, "short_description":"Spettacolo dal vivo"
+        }}];</script>'''
+        rows = _allevents_articles(document, self.endpoint("SRC-0011", "https://allevents.in/siracusa/all"), 10)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].title, "Concerto & teatro")
+        self.assertEqual(rows[0].published_at.astimezone(ZoneInfo("Europe/Rome")).strftime("%H:%M"), "18:30")
+        self.assertEqual(rows[0].metadata["location"], "Ortigia, Siracusa, Italy")
+
+    def test_eventi_siracusa_public_records_parser(self) -> None:
+        payload = '''[{
+          "id":"event-1", "published":true, "title":"Festival a Noto",
+          "start_date":"2026-08-12", "start_time":"21:00",
+          "end_date":"2026-08-13", "end_time":"", "category":"Festival",
+          "short_description":"Musica e spettacoli nel centro storico.",
+          "location_name":"Centro storico", "location_address":"Noto (SR)"
+        }, {
+          "id":"place-1", "published":true, "title":"Museo permanente", "start_date":""
+        }]'''
+        rows = _eventi_siracusa_articles(
+            payload, self.endpoint("SRC-0012", "https://eventisiracusa.base44.app/"), 10,
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].title, "Festival a Noto")
+        self.assertEqual(rows[0].published_at.astimezone(ZoneInfo("Europe/Rome")).strftime("%H:%M"), "21:00")
+        self.assertIn("event_end", rows[0].metadata)
+        self.assertIn("event=event-1", rows[0].url)
+
+    def test_virgilio_microdata_parser(self) -> None:
+        document = '''<article class="cell fll-cell ev_grid" itemscope itemtype="http://schema.org/Event">
+        <article class="eventi eventBox"><div class="eventContent">
+        <h2 itemprop="name"><a itemprop="url" href="/italia/noto/eventi/festival_1" class="title">Festival a Noto</a></h2>
+        <p itemprop="description"><a>Musica nel centro storico.</a></p>
+        <time datetime="2026-08-12T00:00:00Z" itemprop="startDate">12 Ago</time></div>
+        <a itemprop="location"><span itemprop="name">Noto (SR)</span></a></article><style>.eventBox{}</style></article>'''
+        rows = _virgilio_articles(
+            document, self.endpoint("SRC-0013", "https://www.virgilio.it/italia/siracusa/eventi"), 10,
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].title, "Festival a Noto")
+        self.assertEqual(rows[0].metadata["location"], "Noto (SR)")
+        self.assertEqual(rows[0].url, "https://www.virgilio.it/italia/noto/eventi/festival_1")
 
     def test_comune_card_parser(self) -> None:
         document = '''<span class="data_num">12/08/26</span><h3><a class="card-title" href="/evento/test">Evento civico</a></h3><p class="body-description">Incontro a Siracusa</p>'''

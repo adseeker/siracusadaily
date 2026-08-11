@@ -14,6 +14,30 @@ RELIABILITY = {"high": 1.0, "medium": 0.65, "low": 0.3, "unknown": 0.2}
 PRIORITY = {"high": 1.0, "medium": 0.6, "low": 0.25}
 
 
+def _same_dated_event(left: Article, right: Article) -> bool:
+    left_start = left.metadata.get("event_start", "")
+    right_start = right.metadata.get("event_start", "")
+    if not left_start or not right_start:
+        return False
+    try:
+        left_date = datetime.fromisoformat(left_start.replace("Z", "+00:00")).date()
+        right_date = datetime.fromisoformat(right_start.replace("Z", "+00:00")).date()
+    except ValueError:
+        return False
+    if left_date != right_date:
+        return False
+    left_location = tokens(left.metadata.get("location", ""))
+    right_location = tokens(right.metadata.get("location", ""))
+    location_union = left_location | right_location
+    location_similarity = (
+        len(left_location & right_location) / len(location_union) if location_union else 0.0
+    )
+    shared_distinctive_title = {
+        token for token in tokens(left.title) & tokens(right.title) if len(token) >= 5
+    }
+    return location_similarity >= 0.65 and bool(shared_distinctive_title)
+
+
 def _similar(left: Article, right: Article, max_age_hours: float | None = 96) -> bool:
     left_tokens, right_tokens = tokens(left.title), tokens(right.title)
     union = left_tokens | right_tokens
@@ -29,6 +53,7 @@ def _similar(left: Article, right: Article, max_age_hours: float | None = 96) ->
         jaccard >= 0.5
         or sequence >= 0.82
         or (shared_title >= 3 and jaccard >= 0.18 and context_jaccard >= 0.14)
+        or _same_dated_event(left, right)
     )
 
 
