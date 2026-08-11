@@ -64,7 +64,7 @@ La pipeline cerca una sola immagine per il primo contenuto di `Notizie e cronaca
 `Cultura`, `Sport` e `I prossimi eventi`. Usa i metadati pubblici dell'articolo,
 scarica la risorsa, la verifica, la ritaglia in formato 480×300 e la converte in
 JPEG ottimizzato entro 180 KB. Il file viene caricato nel Blob store Netlify del
-sito e l'email usa l'indirizzo stabile `/media/newsletter/...`.
+sito e l'email usa l'indirizzo pubblico stabile della funzione immagini.
 
 Se l'articolo non espone una foto valida, il server sorgente non risponde o
 l'upload fallisce, quella singola immagine viene semplicemente omessa. Il run e la

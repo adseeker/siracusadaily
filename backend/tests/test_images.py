@@ -120,7 +120,7 @@ class ImageDiscoveryTests(unittest.TestCase):
         environment = {
             "SIRACUSA_IMAGE_UPLOAD_TOKEN": "secret",
             "SIRACUSA_IMAGE_UPLOAD_URL": "https://siracusadaily.com/upload",
-            "SIRACUSA_IMAGE_PUBLIC_BASE": "https://siracusadaily.com/media/newsletter",
+            "SIRACUSA_IMAGE_PUBLIC_BASE": "https://siracusadaily.com/.netlify/functions/newsletter-image",
         }
         with (
             patch.dict("os.environ", environment, clear=True),
@@ -129,7 +129,7 @@ class ImageDiscoveryTests(unittest.TestCase):
             result = upload_thumbnail(prepared, "2026-08-11/notizie-123456789abc.jpg")
         self.assertEqual(
             result,
-            "https://siracusadaily.com/media/newsletter/2026-08-11/notizie-123456789abc.jpg",
+            "https://siracusadaily.com/.netlify/functions/newsletter-image?key=2026-08-11%2Fnotizie-123456789abc.jpg",
         )
 
     def test_publishes_only_the_first_item_of_each_target_category(self) -> None:

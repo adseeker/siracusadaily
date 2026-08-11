@@ -9,12 +9,6 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-[[redirects]]
-  from = "/media/newsletter/*"
-  to = "/.netlify/functions/newsletter-image?key=:splat"
-  status = 200
-  force = true
-
 [[headers]]
   for = "/*"
   [headers.values]

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import date
 from html import unescape
 from html.parser import HTMLParser
-from urllib.parse import quote, urlencode, urljoin, urlsplit
+from urllib.parse import urlencode, urljoin, urlsplit
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -313,10 +313,12 @@ def upload_thumbnail(prepared: PreparedImage, key: str, timeout: float = 20.0) -
         raise
     except Exception as exc:
         raise ImageDiscoveryError(f"upload Netlify non riuscito: {exc}") from exc
-    base = os.getenv(
-        "SIRACUSA_IMAGE_PUBLIC_BASE", "https://siracusadaily.com/media/newsletter",
-    ).rstrip("/")
-    return f"{base}/{quote(key, safe='/')}"
+    endpoint = os.getenv(
+        "SIRACUSA_IMAGE_PUBLIC_BASE",
+        "https://siracusadaily.com/.netlify/functions/newsletter-image",
+    )
+    separator = "&" if "?" in endpoint else "?"
+    return f"{endpoint}{separator}{urlencode({'key': key})}"
 
 
 def publish_newsletter_images(
