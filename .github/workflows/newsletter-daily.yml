@@ -167,7 +167,7 @@ jobs:
           retention-days: 7
 
       - name: Segnala un errore
-        if: failure()
+        if: failure() && (github.event_name == 'schedule' || inputs.mode == 'full')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
