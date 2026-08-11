@@ -18,6 +18,7 @@ from siracusa_daily.brevo import (
     find_list,
 )
 from siracusa_daily.database import (
+    active_opportunity_articles,
     connect,
     get_brevo_campaign_for_edition,
     previously_drafted_article_ids,
@@ -40,10 +41,14 @@ from siracusa_daily.editorial import (
 )
 from siracusa_daily.geography import evaluate_locality
 from siracusa_daily.events import event_is_in_window, sort_event_clusters
+from siracusa_daily.opportunities import opportunity_is_active, sort_opportunity_clusters
 from siracusa_daily.mailer import MailerError, send_html
 from siracusa_daily.models import Article, Source, StoryCluster
 from siracusa_daily.models import Endpoint
-from siracusa_daily.retrieval import _asp_articles, _comune_articles, _concorsi_articles, _eventbrite_articles
+from siracusa_daily.retrieval import (
+    _asp_articles, _comune_articles, _concorsi_articles, _deadline_from_text,
+    _eventbrite_articles, _opportunity_detail_metadata,
+)
 from siracusa_daily.selection import cluster_articles, select_stories
 from siracusa_daily.text import canonical_url
 from siracusa_daily.writer import render_html, render_markdown
@@ -168,6 +173,78 @@ class PipelineTests(unittest.TestCase):
             StoryCluster("early", [early], representative=early, category="Eventi"),
         ]
         self.assertEqual([cluster.key for cluster in sort_event_clusters(clusters)], ["early", "late"])
+
+    def test_opportunity_remains_active_through_its_deadline(self) -> None:
+        article = self.article("Concorso per funzionario tecnico")
+        article.published_at = datetime(2026, 7, 1, tzinfo=timezone.utc)
+        deadline = datetime(2026, 8, 18, 13, tzinfo=ZoneInfo("Europe/Rome")).astimezone(timezone.utc)
+        article.metadata = {
+            "opportunity": "true", "opportunity_status": "open",
+            "date_label": "Scadenza", "reference_date": deadline.isoformat(),
+            "opportunity_deadline": deadline.isoformat(),
+        }
+        self.assertTrue(opportunity_is_active(article, date(2026, 8, 18)))
+        self.assertFalse(opportunity_is_active(article, date(2026, 8, 19)))
+
+    def test_closed_opportunity_is_removed_even_before_deadline(self) -> None:
+        article = self.article("Bando revocato")
+        deadline = datetime(2026, 8, 30, tzinfo=timezone.utc)
+        article.metadata = {
+            "opportunity": "true", "opportunity_status": "closed",
+            "opportunity_deadline": deadline.isoformat(),
+        }
+        self.assertFalse(opportunity_is_active(article, date(2026, 8, 11)))
+
+    def test_undated_opportunity_tolerates_temporary_source_failure(self) -> None:
+        article = self.article("Azienda cerca un tecnico")
+        checked = datetime(2026, 8, 10, 8, tzinfo=timezone.utc)
+        article.metadata = {
+            "opportunity": "true", "opportunity_status": "listed",
+            "opportunity_verified_at": checked.isoformat(),
+        }
+        self.assertTrue(opportunity_is_active(article, date(2026, 8, 11)))
+        self.assertFalse(opportunity_is_active(article, date(2026, 8, 14)))
+
+    def test_active_opportunities_ignore_publication_lookback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            connection = connect(Path(directory) / "test.db")
+            article = self.article("Comune di Floridia, selezione aperta")
+            article.published_at = datetime(2026, 6, 1, tzinfo=timezone.utc)
+            deadline = datetime(2026, 8, 22, tzinfo=timezone.utc)
+            article.metadata = {
+                "opportunity": "true", "opportunity_status": "open",
+                "date_label": "Scadenza", "reference_date": deadline.isoformat(),
+                "opportunity_deadline": deadline.isoformat(),
+            }
+            article.local_score = 0.9
+            upsert_article(connection, article)
+
+            result = active_opportunity_articles(connection, date(2026, 8, 11))
+
+            self.assertEqual([item.title for item in result], [article.title])
+            connection.close()
+
+    def test_opportunities_are_sorted_by_urgent_deadline(self) -> None:
+        urgent = self.article("Bando in scadenza")
+        recent = self.article("Nuova offerta senza scadenza")
+        urgent.metadata = {
+            "opportunity": "true", "opportunity_status": "open",
+            "opportunity_deadline": datetime(2026, 8, 13, tzinfo=timezone.utc).isoformat(),
+        }
+        recent.metadata = {"opportunity": "true", "opportunity_status": "listed"}
+        clusters = [
+            StoryCluster("recent", [recent], representative=recent),
+            StoryCluster("urgent", [urgent], representative=urgent),
+        ]
+        ordered = sort_opportunity_clusters(clusters, date(2026, 8, 11))
+        self.assertEqual([cluster.key for cluster in ordered], ["urgent", "recent"])
+
+    def test_opportunity_deduplication_ignores_publication_age(self) -> None:
+        left = self.article("Comune di Floridia, selezione per funzionario tecnico", "SRC-A")
+        right = self.article("Selezione per funzionario tecnico al Comune di Floridia", "SRC-B")
+        left.published_at = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        right.published_at = datetime(2026, 8, 22, tzinfo=timezone.utc)
+        self.assertEqual(len(cluster_articles([left, right], max_age_hours=None)), 1)
 
     def test_database_upsert(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -713,6 +790,21 @@ class PipelineTests(unittest.TestCase):
         rows = _concorsi_articles(active + expired, self.endpoint("SRC-0009", "https://www.concorsipubblici.com/lista"), 10)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].metadata["date_label"], "Scadenza")
+        self.assertEqual(rows[0].metadata["opportunity"], "true")
+
+    def test_opportunity_deadline_parser_reads_italian_date_and_time(self) -> None:
+        parsed = _deadline_from_text(
+            "Le domande devono essere presentate entro il 18 agosto 2026 ore 13.00."
+        )
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed.astimezone(ZoneInfo("Europe/Rome")).strftime("%d/%m/%Y %H:%M"), "18/08/2026 13:00")
+
+    def test_opportunity_detail_parser_prefers_deadline_over_open_badge(self) -> None:
+        document = '''<div data-element="service-status"><span class="chip-label">Aperto</span></div>
+        <small>Data di scadenza della candidatura:</small><p>19/07/2026 23:59</p>'''
+        metadata = _opportunity_detail_metadata(document)
+        self.assertEqual(metadata["opportunity_status"], "open")
+        self.assertIn("opportunity_deadline", metadata)
 
     def test_asp_card_parser(self) -> None:
         document = '''<h3 class="card-title big-heading"><a href="/concorso/test">Avviso ASP Siracusa</a></h3><span class="font-monospace text-500">23 Luglio 2026</span>'''

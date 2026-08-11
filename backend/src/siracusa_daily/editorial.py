@@ -152,6 +152,7 @@ Assegna semanticamente una sola section tra quelle consentite dallo schema:
 - Eventi: appuntamenti futuri aperti alla partecipazione. Se il candidato contiene date_label Inizio o Data e una reference_date futura, mantienilo obbligatoriamente in questa sezione;
 - Servizi e utilità: acqua, viabilità, trasporti, rifiuti, meteo e avvisi operativi;
 - Lavoro e opportunità: concorsi, selezioni, bandi, formazione e offerte di lavoro.
+  I candidati di questa sezione sono già stati verificati come opportunità attive: non escluderli solo perché la pubblicazione non è recente. Conserva sempre la scadenza quando è disponibile.
 Classifica il contenuto reale, non limitarti all'etichetta generica fornita dalla fonte.
 
 OUTPUT

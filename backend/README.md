@@ -26,6 +26,15 @@ in corso e li ordina cronologicamente. Gli eventi possono ricomparire nelle
 edizioni successive finché restano nella finestra; il limite operativo
 predefinito è 8 e si modifica con `--event-limit`.
 
+La sezione `Lavoro e opportunità` è anch'essa indipendente dalle notizie. Concorsi,
+bandi e offerte strutturate possono ricomparire ogni giorno finché risultano
+aperti. Una scadenza esplicita vale fino alla fine del giorno indicato; uno stato
+chiuso o scaduto rimuove subito la voce. Se manca la scadenza, la presenza viene
+ricontrollata alla fonte e tollera fino a tre giorni senza conferma, così un errore
+temporaneo del sito non fa sparire l'opportunità. L'ordine privilegia le scadenze
+entro sette giorni e poi le pubblicazioni più recenti. Il limite predefinito è 6
+e si modifica con `--opportunity-limit`.
+
 L'oggetto non può essere guidato da decessi, incidenti gravi, violenza, vittime,
 cronaca nera o altre formulazioni emotivamente forti. Queste notizie possono
 restare nel corpo dell'edizione; un controllo deterministico obbliga l'oggetto a

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .config import load_endpoints, load_sources
 from .database import (
+    active_opportunity_articles,
     connect,
     last_source_positions,
     previously_drafted_article_ids,
@@ -17,6 +18,7 @@ from .database import (
 )
 from .geography import evaluate_locality
 from .events import is_dated_event, sort_event_clusters
+from .opportunities import is_opportunity, sort_opportunity_clusters
 from .retrieval import RetrievalError, retrieve_html, retrieve_rss
 from .selection import select_stories
 from .writer import render_html, render_markdown, save_html, save_markdown
@@ -72,13 +74,17 @@ def build_newsletter(
     source_map: Path, database: Path, output: Path, edition_date: date | None = None,
     lookback_hours: int = 72, limit: int = 8, writer_mode: str = "openai", model: str = DEFAULT_MODEL,
     unsubscribe_url: str | None = None, event_limit: int = 8,
+    opportunity_limit: int = 6,
 ) -> tuple[int, int, str, str]:
     edition_date = edition_date or date.today()
     sources = load_sources(source_map)
     connection = connect(database)
     try:
         recent = recent_articles(connection, datetime.now(timezone.utc) - timedelta(hours=lookback_hours))
-        news_articles = [article for article in recent if not is_dated_event(article)]
+        news_articles = [
+            article for article in recent
+            if not is_dated_event(article) and not is_opportunity(article)
+        ]
         news_clusters = select_stories(
             news_articles,
             sources,
@@ -95,7 +101,23 @@ def build_newsletter(
         )
         for cluster in event_clusters:
             cluster.category = "Eventi"
-        clusters = news_clusters + sort_event_clusters(event_clusters)
+        opportunity_articles = active_opportunity_articles(connection, edition_date)
+        opportunity_clusters = select_stories(
+            opportunity_articles, sources, last_source_positions(connection),
+            limit=len(opportunity_articles),
+            max_per_source=max(1, len(opportunity_articles)),
+            cluster_max_age_hours=None,
+        )
+        opportunity_clusters = sort_opportunity_clusters(
+            opportunity_clusters, edition_date,
+        )[:opportunity_limit]
+        for cluster in opportunity_clusters:
+            cluster.category = "Lavoro e opportunità"
+        clusters = (
+            news_clusters
+            + sort_event_clusters(event_clusters)
+            + opportunity_clusters
+        )
         selected_clusters = list(clusters)
         editorial_items, writer_used, exclusions, email_subject = generate_editorial(
             clusters, sources, mode=writer_mode, model=model,
@@ -105,6 +127,8 @@ def build_newsletter(
             for cluster in clusters:
                 if is_dated_event(cluster.representative):
                     cluster.category = "Eventi"
+                elif is_opportunity(cluster.representative):
+                    cluster.category = "Lavoro e opportunità"
                 elif cluster.key in sections:
                     cluster.category = sections[cluster.key]
             valid_ids = {item.candidate_id for item in editorial_items}

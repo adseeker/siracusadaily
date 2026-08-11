@@ -46,6 +46,7 @@ fi
     --item-limit 30 \
     --limit 10 \
     --event-limit 8 \
+    --opportunity-limit 6 \
     --minimum-items 6 \
     --output "$RUNTIME_DIR/output/newsletter.html" \
     --skip-existing-brevo-date \

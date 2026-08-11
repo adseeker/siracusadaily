@@ -7,6 +7,7 @@ import json
 import re
 import urllib.request
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from urllib.parse import urljoin, urlsplit
 from zoneinfo import ZoneInfo
@@ -15,6 +16,12 @@ from .models import Article, Endpoint
 from .text import canonical_url, strip_html
 
 USER_AGENT = "SiracusaDaily/0.1 (+local-news-research)"
+
+OPPORTUNITY_ENDPOINTS = {"END-0022", "END-0038", "END-0039", "END-0040", "END-0041"}
+OPPORTUNITY_EXCLUSIONS = (
+    "avviso ai creditori", "avviso ad opponendum", "commissione esaminatrice",
+    "verbale del sorteggio", "avviso interno", "mobilità interna", "mobilita interna",
+)
 
 
 class RetrievalError(RuntimeError):
@@ -94,7 +101,7 @@ def retrieve_rss(endpoint: Endpoint, limit: int = 30, timeout: float = 15.0) -> 
                 content_buckets=endpoint.content_buckets,
             )
         )
-    return articles
+    return _prepare_opportunities(endpoint, articles, timeout)
 
 
 ITALIAN_MONTHS = {
@@ -122,16 +129,136 @@ def _parse_optional_local_date(value: str) -> datetime | None:
         return parsed.replace(tzinfo=ROME).astimezone(timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
     except ValueError:
         pass
-    for pattern in ("%d/%m/%Y", "%d/%m/%y", "%Y-%m-%d", "%Y-%m-%dT%H:%M:%S%z"):
+    for pattern in (
+        "%d/%m/%Y %H:%M", "%d/%m/%Y %H.%M", "%d.%m.%Y %H:%M", "%d.%m.%Y %H.%M",
+        "%d/%m/%Y", "%d/%m/%y", "%d.%m.%Y", "%Y-%m-%d", "%Y-%m-%dT%H:%M:%S%z",
+    ):
         try:
             parsed = datetime.strptime(value, pattern)
             return parsed.replace(tzinfo=ROME).astimezone(timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
         except ValueError:
             pass
-    match = re.search(r"(\d{1,2})\s+([A-Za-zà-ù]+)\s+(\d{4})", value.lower())
+    match = re.search(
+        r"(\d{1,2})\s+([A-Za-zà-ù]+)\s+(\d{4})(?:\s+(?:ore?\s*)?(\d{1,2})[:.]([0-5]\d))?",
+        value.lower(),
+    )
     if match and match.group(2) in ITALIAN_MONTHS:
-        return datetime(int(match.group(3)), ITALIAN_MONTHS[match.group(2)], int(match.group(1)), tzinfo=ROME).astimezone(timezone.utc)
+        return datetime(
+            int(match.group(3)), ITALIAN_MONTHS[match.group(2)], int(match.group(1)),
+            int(match.group(4) or 0), int(match.group(5) or 0), tzinfo=ROME,
+        ).astimezone(timezone.utc)
     return None
+
+
+def _is_actionable_opportunity(endpoint: Endpoint, article: Article) -> bool:
+    if endpoint.endpoint_id not in OPPORTUNITY_ENDPOINTS:
+        return False
+    text = _html_text(f"{article.title} {article.excerpt}").lower()
+    if any(term in text for term in OPPORTUNITY_EXCLUSIONS):
+        return False
+    if endpoint.endpoint_id == "END-0040":
+        return True
+    if endpoint.endpoint_id == "END-0041":
+        return any(term in text for term in ("concorso pubblico", "avviso pubblico"))
+    if endpoint.endpoint_id == "END-0038":
+        return any(term in text for term in (
+            "manifestazione di interesse", "assegnazione", "acquisizione di disponibilità",
+            "acquisizione di disponibilita", "richiesta di preventivo", "candidatura",
+        ))
+    if endpoint.endpoint_id == "END-0039":
+        return any(term in text for term in (
+            "mobilità volontaria", "mobilita volontaria", "concorso", "selezione",
+            "sponsor", "candidatura",
+        ))
+    return any(term in text for term in (
+        "offerta di lavoro", "posizioni aperte", "ricerca personale", "cerca personale",
+        "assume", "assunzioni", "candidature aperte",
+    ))
+
+
+def _deadline_from_text(value: str) -> datetime | None:
+    text = _html_text(value)
+    contexts = re.findall(
+        r"(?:data\s+(?:di\s+)?scadenza(?:\s+della\s+candidatura)?|scadenza(?:\s+è\s+fissata)?|"
+        r"entro(?:\s+e\s+non\s+oltre)?)(.{0,140})",
+        text, flags=re.I,
+    )
+    date_pattern = (
+        r"\d{1,2}[/.]\d{1,2}[/.]\d{4}(?:\s+(?:ore?\s*)?\d{1,2}[:.]\d{2})?"
+        r"|\d{1,2}\s+[A-Za-zà-ù]+\s+\d{4}(?:\s+(?:ore?\s*)?\d{1,2}[:.]\d{2})?"
+    )
+    for context in contexts:
+        match = re.search(date_pattern, context, flags=re.I)
+        if match:
+            parsed = _parse_optional_local_date(match.group(0))
+            if parsed is not None:
+                return parsed
+    return None
+
+
+def _opportunity_detail_metadata(document: str) -> dict[str, str]:
+    metadata: dict[str, str] = {}
+    deadline = _deadline_from_text(document)
+    if deadline is not None:
+        metadata.update({
+            "date_label": "Scadenza",
+            "reference_date": deadline.isoformat(),
+            "opportunity_deadline": deadline.isoformat(),
+        })
+    status_match = re.search(
+        r"data-element=[\"']service-status[\"'].*?class=[\"'][^\"']*chip-label[^\"']*[\"'][^>]*>(.*?)</span>",
+        document, flags=re.I | re.S,
+    )
+    if status_match:
+        label = _html_text(status_match.group(1)).lower()
+        metadata["opportunity_status"] = {
+            "aperto": "open", "chiuso": "closed", "scaduto": "expired",
+        }.get(label, label)
+    return metadata
+
+
+def _prepare_opportunities(
+    endpoint: Endpoint, articles: list[Article], timeout: float,
+) -> list[Article]:
+    candidates = [article for article in articles if _is_actionable_opportunity(endpoint, article)]
+    if not candidates:
+        return articles
+    for article in candidates:
+        default_status = (
+            "unverified" if endpoint.endpoint_id in {"END-0038", "END-0039"}
+            else "listed"
+        )
+        article.metadata.update({
+            "opportunity": "true",
+            "opportunity_status": article.metadata.get("opportunity_status", default_status),
+            "opportunity_verified_at": article.retrieved_at.isoformat(),
+        })
+        deadline = _deadline_from_text(f"{article.title} {article.excerpt}")
+        if deadline is not None:
+            article.metadata.update({
+                "date_label": "Scadenza", "reference_date": deadline.isoformat(),
+                "opportunity_deadline": deadline.isoformat(),
+            })
+
+    def detail(article: Article) -> tuple[Article, dict[str, str] | None]:
+        try:
+            document = _download(
+                article.url, timeout=min(timeout, 12.0),
+                accept="text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
+            ).decode("utf-8", errors="replace")
+        except RetrievalError:
+            return article, None
+        return article, _opportunity_detail_metadata(document)
+
+    # Detail pages contain authoritative deadlines that are absent from many
+    # list pages. Parallel, bounded reads keep the daily run reasonably fast.
+    with ThreadPoolExecutor(max_workers=min(6, len(candidates))) as executor:
+        futures = [executor.submit(detail, article) for article in candidates]
+        for future in as_completed(futures):
+            article, metadata = future.result()
+            if metadata:
+                article.metadata.update(metadata)
+    return articles
 
 
 def _event_metadata(start: datetime, end: datetime | None = None, **values: str) -> dict[str, str]:
@@ -316,7 +443,11 @@ def _concorsi_articles(document: str, endpoint: Endpoint, limit: int) -> list[Ar
             source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id, title=title,
             url=canonical_url(urljoin(endpoint.url, title_match.group(1))), published_at=deadline,
             excerpt=excerpt, author="ConcorsiPubblici.com", content_buckets=endpoint.content_buckets,
-            metadata={"date_label": "Scadenza", "reference_date": deadline.isoformat()},
+            metadata={
+                "date_label": "Scadenza", "reference_date": deadline.isoformat(),
+                "opportunity": "true", "opportunity_status": "open",
+                "opportunity_deadline": deadline.isoformat(),
+            },
         ))
         if len(articles) >= limit:
             break
@@ -331,7 +462,7 @@ def retrieve_html(endpoint: Endpoint, limit: int = 30, timeout: float = 15.0) ->
     if "comune.siracusa.it" in host:
         return _comune_articles(document, endpoint, limit)
     if "concorsipubblici.com" in host:
-        return _concorsi_articles(document, endpoint, limit)
+        return _prepare_opportunities(endpoint, _concorsi_articles(document, endpoint, limit), timeout)
     if "asp.sr.it" in host:
-        return _asp_articles(document, endpoint, limit)
+        return _prepare_opportunities(endpoint, _asp_articles(document, endpoint, limit), timeout)
     raise RetrievalError(f"{endpoint.url}: nessun adapter HTML registrato")

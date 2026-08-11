@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .events import event_is_in_window, event_sort_key
 from .models import Article
+from .opportunities import opportunity_is_active, opportunity_sort_key
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -144,6 +145,26 @@ def upcoming_event_articles(
         if event_is_in_window(article, edition_date, days)
     ]
     return sorted(events, key=event_sort_key)
+
+
+def active_opportunity_articles(
+    connection: sqlite3.Connection, edition_date: date,
+    minimum_local_score: float = 0.55, grace_days: int = 3,
+) -> list[Article]:
+    rows = connection.execute(
+        """SELECT * FROM articles
+           WHERE local_score >= ?
+             AND json_extract(metadata, '$.opportunity') = 'true'""",
+        (minimum_local_score,),
+    ).fetchall()
+    opportunities = [
+        article for article in _articles_from_rows(rows)
+        if opportunity_is_active(article, edition_date, grace_days)
+    ]
+    return sorted(
+        opportunities,
+        key=lambda article: opportunity_sort_key(article, edition_date),
+    )
 
 
 def last_source_positions(connection: sqlite3.Connection) -> dict[str, int]:

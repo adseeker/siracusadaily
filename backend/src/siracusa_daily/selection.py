@@ -14,7 +14,7 @@ RELIABILITY = {"high": 1.0, "medium": 0.65, "low": 0.3, "unknown": 0.2}
 PRIORITY = {"high": 1.0, "medium": 0.6, "low": 0.25}
 
 
-def _similar(left: Article, right: Article) -> bool:
+def _similar(left: Article, right: Article, max_age_hours: float | None = 96) -> bool:
     left_tokens, right_tokens = tokens(left.title), tokens(right.title)
     union = left_tokens | right_tokens
     jaccard = len(left_tokens & right_tokens) / len(union) if union else 0.0
@@ -25,17 +25,22 @@ def _similar(left: Article, right: Article) -> bool:
     context_jaccard = len(left_context & right_context) / len(context_union) if context_union else 0.0
     shared_title = len(left_tokens & right_tokens)
     hours = abs((left.published_at - right.published_at).total_seconds()) / 3600
-    return hours <= 96 and (
+    return (max_age_hours is None or hours <= max_age_hours) and (
         jaccard >= 0.5
         or sequence >= 0.82
         or (shared_title >= 3 and jaccard >= 0.18 and context_jaccard >= 0.14)
     )
 
 
-def cluster_articles(articles: list[Article]) -> list[StoryCluster]:
+def cluster_articles(
+    articles: list[Article], max_age_hours: float | None = 96,
+) -> list[StoryCluster]:
     clusters: list[StoryCluster] = []
     for article in sorted(articles, key=lambda item: item.published_at, reverse=True):
-        target = next((cluster for cluster in clusters if any(_similar(article, other) for other in cluster.articles)), None)
+        target = next((
+            cluster for cluster in clusters
+            if any(_similar(article, other, max_age_hours) for other in cluster.articles)
+        ), None)
         if target is None:
             key = hashlib.sha1(normalize_text(article.title).encode()).hexdigest()[:12]
             clusters.append(StoryCluster(key=key, articles=[article]))
@@ -61,9 +66,10 @@ def select_stories(
     articles: list[Article], sources: dict[str, Source], last_used: dict[str, int], limit: int = 8,
     max_per_source: int = 3, now: datetime | None = None,
     excluded_article_ids: set[int] | None = None,
+    cluster_max_age_hours: float | None = 96,
 ) -> list[StoryCluster]:
     now = now or datetime.now(timezone.utc)
-    clusters = cluster_articles(articles)
+    clusters = cluster_articles(articles, cluster_max_age_hours)
     if excluded_article_ids:
         # The previously used URL remains inside the lookback window and acts as
         # an anchor: its whole semantic cluster is removed, including duplicates
