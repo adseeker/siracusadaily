@@ -29,6 +29,12 @@ class NotionPublishResult:
     replaced_blocks: int
 
 
+@dataclass(frozen=True)
+class NotionAccessCheck:
+    page_id: str
+    readable_blocks: int
+
+
 def _token(explicit: str | None = None) -> str:
     value = explicit or os.getenv("NOTION_TOKEN", "")
     if not value:
@@ -180,3 +186,29 @@ def publish_facebook_recap(
     for row in replaceable:
         _request("DELETE", f"/blocks/{row['id']}", token=token)
     return NotionPublishResult(page_id=page_id, replaced_blocks=len(replaceable))
+
+
+def check_notion_access(
+    page_id: str, *, token: str | None = None,
+) -> NotionAccessCheck:
+    page_id = page_id.strip()
+    if not PAGE_ID_PATTERN.fullmatch(page_id):
+        raise NotionPublishError("NOTION_FACEBOOK_PAGE_ID non valido")
+
+    existing = _children(page_id, token=token)
+    marker = f"Test temporaneo SiracusaDaily {datetime.now(ROME).isoformat()}"
+    created = _request(
+        "PATCH",
+        f"/blocks/{page_id}/children",
+        token=token,
+        payload={
+            "position": {"type": "end"},
+            "children": [_text_block("paragraph", marker)],
+        },
+    )
+    rows = created.get("results", [])
+    block_id = rows[0].get("id") if isinstance(rows, list) and rows else None
+    if not isinstance(block_id, str) or not block_id:
+        raise NotionPublishError("Notion non ha restituito il blocco temporaneo creato")
+    _request("DELETE", f"/blocks/{block_id}", token=token)
+    return NotionAccessCheck(page_id=page_id, readable_blocks=len(existing))

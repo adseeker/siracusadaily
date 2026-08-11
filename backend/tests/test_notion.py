@@ -6,7 +6,11 @@ from datetime import datetime
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
-from siracusa_daily.notion import NotionPublishError, publish_facebook_recap
+from siracusa_daily.notion import (
+    NotionPublishError,
+    check_notion_access,
+    publish_facebook_recap,
+)
 
 
 PAGE_ID = "3b9deac1-b022-8196-8a55-d77a97e81cf9"
@@ -76,6 +80,21 @@ class NotionPublishTests(unittest.TestCase):
             with self.assertRaises(NotionPublishError):
                 publish_facebook_recap(PAGE_ID, "", "fonti", token="secret")
         request.assert_not_called()
+
+    def test_access_check_reads_writes_and_removes_a_temporary_block(self) -> None:
+        responses = [
+            Response({"results": [{"id": "existing"}], "has_more": False}),
+            Response({"results": [{"id": "temporary"}]}),
+            Response({"id": "temporary"}),
+        ]
+        with patch("siracusa_daily.notion.urlopen", side_effect=responses) as request:
+            result = check_notion_access(PAGE_ID, token="secret")
+
+        self.assertEqual(result.readable_blocks, 1)
+        self.assertEqual(request.call_count, 3)
+        self.assertEqual(request.call_args_list[1].args[0].method, "PATCH")
+        self.assertEqual(request.call_args_list[2].args[0].method, "DELETE")
+        self.assertTrue(request.call_args_list[2].args[0].full_url.endswith("/blocks/temporary"))
 
 
 if __name__ == "__main__":

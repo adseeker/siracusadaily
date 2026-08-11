@@ -70,6 +70,10 @@ interna Notion deve avere accesso alla pagina operativa e capacità di lettura e
 aggiornamento dei contenuti. Un errore Notion non blocca né l'email né gli
 artifact; il workflow lo espone come warning.
 
+La modalità manuale `notion-test` verifica lettura, scrittura e rimozione di un
+blocco temporaneo senza chiamare OpenAI, generare newsletter o creare campagne
+Brevo.
+
 ## Iscrizione utenti
 
 La landing page incorpora un form Brevo diretto con:

@@ -8,12 +8,12 @@ Stato: sistema operativo in produzione
 
 ## Test automatici
 
-Il repository contiene attualmente 102 test automatici eseguiti prima di ogni run:
+Il repository contiene attualmente 103 test automatici eseguiti prima di ogni run:
 
 - 84 test di pipeline;
 - 10 test dedicati alle immagini;
 - 5 test dedicati al recap Facebook;
-- 3 test dedicati alla pubblicazione operativa su Notion.
+- 4 test dedicati alla pubblicazione operativa su Notion.
 
 La suite copre, tra le altre cose:
 

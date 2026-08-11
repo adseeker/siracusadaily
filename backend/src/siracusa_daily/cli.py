@@ -25,7 +25,7 @@ from .database import (
 from .pipeline import build_newsletter, ingest
 from .editorial import DEFAULT_MODEL, EditorialError
 from .mailer import MailerError, send_html
-from .notion import NotionPublishError, publish_facebook_recap
+from .notion import NotionPublishError, check_notion_access, publish_facebook_recap
 
 PROJECT = Path(__file__).resolve().parents[2]
 
@@ -51,6 +51,8 @@ def parser() -> argparse.ArgumentParser:
     notion.add_argument("--page-id", required=True)
     notion.add_argument("--post", type=Path, required=True)
     notion.add_argument("--sources", type=Path, required=True)
+    notion_check = commands.add_parser("notion-check")
+    notion_check.add_argument("--page-id", required=True)
     preflight = commands.add_parser("preflight")
     preflight.add_argument("--date", type=date.fromisoformat)
     preflight.add_argument("--brevo-list", default=DEFAULT_LIST_NAME)
@@ -124,6 +126,16 @@ def main() -> None:
         print(
             f"Recap Notion aggiornato: pagina {result.page_id}; "
             f"{result.replaced_blocks} blocchi precedenti sostituiti."
+        )
+        return
+    if args.command == "notion-check":
+        try:
+            result = check_notion_access(args.page_id)
+        except NotionPublishError as exc:
+            raise SystemExit(f"Test Notion fallito: {exc}") from exc
+        print(
+            f"Test Notion riuscito: pagina {result.page_id} leggibile; "
+            "scrittura e rimozione del blocco temporaneo riuscite."
         )
         return
     if args.command == "preflight":
