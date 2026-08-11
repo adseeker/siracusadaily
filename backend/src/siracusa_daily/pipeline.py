@@ -37,6 +37,7 @@ from .retrieval import RetrievalError, retrieve_html, retrieve_rss
 from .selection import select_stories
 from .writer import render_html, render_markdown, save_html, save_markdown
 from .editorial import DEFAULT_MODEL, generate_editorial
+from .images import publish_newsletter_images
 
 
 @dataclass
@@ -159,6 +160,14 @@ def build_newsletter(
             valid_ids = {item.candidate_id for item in editorial_items}
             clusters = [cluster for cluster in clusters if cluster.key in valid_ids]
         if output.suffix.lower() == ".html":
+            image_report = publish_newsletter_images(clusters, edition_date)
+            if image_report.attempted:
+                print(
+                    f"Immagini: {image_report.published}/{image_report.attempted} pubblicate; "
+                    f"{image_report.skipped} saltate"
+                )
+            for error in image_report.errors:
+                print(f"WARN IMG {error}")
             content = render_html(
                 edition_date, clusters, sources, editorial_items,
                 publisher_name=os.getenv("SIRACUSA_PUBLISHER_NAME", "SiracusaDaily"),

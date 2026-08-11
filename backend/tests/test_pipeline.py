@@ -849,12 +849,14 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(output.count("<h1"), 1)
         self.assertIn(f"Edizione del {article.published_at:%d/%m/%Y}", output)
         self.assertIn("background:#ffffff", output)
+        self.assertIn("background:#f8fafc", output)
         self.assertIn("@media only screen and (max-width:480px)", output)
         self.assertIn("table-layout:fixed", output)
-        self.assertIn("font:700 20px/1.3 Georgia", output)
+        self.assertIn("font:700 22px/1.3 Arial", output)
+        self.assertIn("border-radius:14px", output)
+        self.assertIn("🗞️", output)
         self.assertIn("text-decoration:underline", output)
         self.assertNotIn("#dbe3ea", output)
-        self.assertNotIn("border-bottom:1px solid #e5e7eb", output)
         self.assertNotIn("Pubblicato", output)
         self.assertNotIn("Bozza generata automaticamente", output)
         self.assertNotIn("Le informazioni locali da conoscere oggi.", output)
@@ -872,7 +874,49 @@ class PipelineTests(unittest.TestCase):
         html = render_html(date(2026, 8, 11), [cluster], {"SRC-A": self.source})
         self.assertIn("## I prossimi eventi", markdown)
         self.assertIn("I prossimi eventi", html)
+        self.assertIn("mercoledì 12 agosto · 21:00", html)
         self.assertNotIn(">Eventi</h2>", html)
+
+    def test_html_renders_a_thumbnail_when_available(self) -> None:
+        article = self.article("Siracusa, una notizia locale")
+        article.metadata = {
+            "newsletter_image_url": "https://siracusadaily.com/media/newsletter/2026-08-11/notizie-test.jpg",
+            "newsletter_image_alt": "Immagine della notizia",
+        }
+        cluster = StoryCluster("story-image", [article], representative=article)
+        output = render_html(date(2026, 8, 11), [cluster], {"SRC-A": self.source})
+        self.assertIn('class="sd-thumb"', output)
+        self.assertIn("notizie-test.jpg", output)
+        self.assertIn('alt="Immagine della notizia"', output)
+
+    def test_html_marks_an_urgent_opportunity_deadline(self) -> None:
+        article = self.article("Bando locale")
+        deadline = datetime(2026, 8, 14, 12, tzinfo=ZoneInfo("Europe/Rome"))
+        article.metadata = {
+            "date_label": "Scadenza",
+            "reference_date": deadline.isoformat(),
+        }
+        cluster = StoryCluster(
+            "opportunity", [article], representative=article,
+            category="Lavoro e opportunità",
+        )
+        output = render_html(date(2026, 8, 11), [cluster], {"SRC-A": self.source})
+        self.assertIn("In scadenza", output)
+        self.assertIn("Scadenza 14 agosto", output)
+
+    def test_services_are_rendered_before_events(self) -> None:
+        service = self.article("Servizio idrico")
+        event = self.article("Concerto")
+        event.metadata = {
+            "date_label": "Inizio",
+            "reference_date": datetime(2026, 8, 12, 21, tzinfo=ZoneInfo("Europe/Rome")).isoformat(),
+        }
+        clusters = [
+            StoryCluster("event", [event], representative=event, category="Eventi"),
+            StoryCluster("service", [service], representative=service, category="Servizi e utilità"),
+        ]
+        output = render_html(date(2026, 8, 11), clusters, {"SRC-A": self.source})
+        self.assertLess(output.index("Servizi e utilità"), output.index("I prossimi eventi"))
 
     def test_brevo_html_has_an_italian_unsubscribe_link(self) -> None:
         article = self.article("Siracusa, una notizia locale")

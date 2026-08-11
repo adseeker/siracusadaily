@@ -13,6 +13,8 @@ Variabili Netlify:
 - `OPENAI_PROJECT_ID`: limita costi e utilizzo al progetto SiracusaDaily, consigliata;
 - `GITHUB_DASHBOARD_TOKEN`: token read-only per leggere i run della repository privata;
 - `GITHUB_REPOSITORY`: repository nel formato `owner/repo`, predefinita `adseeker/siracusadaily`.
+- `SIRACUSA_IMAGE_UPLOAD_TOKEN`: token privato condiviso con GitHub Actions per
+  pubblicare le thumbnail della newsletter nel Blob store Netlify.
 
 Landing page e motore editoriale della newsletter quotidiana SiracusaDaily.
 

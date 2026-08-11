@@ -8,8 +8,8 @@ CATEGORY_ORDER = (
     "Politica ed economia",
     "Cultura",
     "Sport",
-    "Eventi",
     "Servizi e utilità",
+    "Eventi",
     "Lavoro e opportunità",
 )
 

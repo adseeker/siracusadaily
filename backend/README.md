@@ -51,9 +51,29 @@ cronaca nera o altre formulazioni emotivamente forti. Queste notizie possono
 restare nel corpo dell'edizione; un controllo deterministico obbliga l'oggetto a
 usare un contenuto diverso e neutro, oppure blocca la creazione della bozza.
 
-I secret richiesti nel repository sono `OPENAI_API_KEY` e `BREVO_API_KEY`.
+I secret richiesti nel repository sono `OPENAI_API_KEY`, `BREVO_API_KEY` e
+`SIRACUSA_IMAGE_UPLOAD_TOKEN`. Quest'ultimo deve contenere lo stesso valore della
+variabile Netlify omonima: autorizza soltanto il caricamento delle thumbnail e non
+viene mai inserito nell'HTML o inviato al browser.
 Dal pannello Actions si può lanciare `preflight`, che controlla l'infrastruttura
 senza chiamare OpenAI né creare una bozza, oppure `full` per un run completo.
+
+## Immagini nelle email
+
+La pipeline cerca una sola immagine per il primo contenuto di `Notizie e cronaca`,
+`Cultura`, `Sport` e `I prossimi eventi`. Usa i metadati pubblici dell'articolo,
+scarica la risorsa, la verifica, la ritaglia in formato 480×300 e la converte in
+JPEG ottimizzato entro 180 KB. Il file viene caricato nel Blob store Netlify del
+sito e l'email usa l'indirizzo stabile `/media/newsletter/...`.
+
+Se l'articolo non espone una foto valida, il server sorgente non risponde o
+l'upload fallisce, quella singola immagine viene semplicemente omessa. Il run e la
+bozza Brevo proseguono normalmente. Le altre categorie rimangono testuali.
+
+Netlify deve avere la variabile protetta `SIRACUSA_IMAGE_UPLOAD_TOKEN`; GitHub
+Actions deve avere un secret con lo stesso nome e lo stesso valore. La funzione
+accetta soltanto JPEG ottimizzati, chiavi nel formato previsto e richieste PUT
+autenticate. La lettura pubblica delle immagini è servita con cache CDN annuale.
 
 Brevo deve accettare chiamate API dai runner GitHub, i cui indirizzi IP cambiano.
 In `Settings > Security > Authorized IPs` il blocco degli IP sconosciuti va quindi
