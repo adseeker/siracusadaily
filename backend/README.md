@@ -1,6 +1,6 @@
 # Motore SiracusaDaily
 
-Pipeline per retrieval, classificazione, deduplicazione, selezione, scrittura e creazione della bozza Brevo.
+Pipeline per retrieval, classificazione, deduplicazione, selezione, scrittura e consegna tramite Brevo.
 
 ## Automazione GitHub
 
@@ -17,7 +17,14 @@ Il workflow:
 - ritenta le chiamate OpenAI in caso di errori temporanei;
 - salva HTML e log per 7 giorni;
 - apre una issue GitHub se fallisce;
-- crea soltanto una bozza Brevo, senza inviarla.
+- programma automaticamente su Brevo la campagna prodotta dai run schedulati;
+- mantiene i run manuali in modalità bozza.
+
+La campagna ordinaria viene programmata alle 08:30, ora di Roma. Se la produzione
+termina dopo le 08:15, l'invio viene spostato a 15 minuti dal completamento e
+arrotondato al minuto successivo. La variabile GitHub
+`SIRACUSA_AUTO_SEND_ENABLED` funziona da kill switch: con valore diverso da
+`true`, la campagna viene creata ma resta in bozza.
 
 La sezione `I prossimi eventi` usa una logica distinta dalle notizie: legge gli
 eventi strutturati già conservati nel database, seleziona quelli compresi tra il
@@ -55,6 +62,8 @@ I secret richiesti nel repository sono `OPENAI_API_KEY`, `BREVO_API_KEY` e
 `SIRACUSA_IMAGE_UPLOAD_TOKEN`. Quest'ultimo deve contenere lo stesso valore della
 variabile Netlify omonima: autorizza soltanto il caricamento delle thumbnail e non
 viene mai inserito nell'HTML o inviato al browser.
+La variabile GitHub Actions `SIRACUSA_AUTO_SEND_ENABLED` non è un secret e deve
+essere impostata a `true` per abilitare l'invio dei soli run pianificati.
 Dal pannello Actions si può lanciare `preflight`, che controlla l'infrastruttura
 senza chiamare OpenAI né creare una bozza, oppure `full` per un run completo.
 
@@ -68,7 +77,7 @@ sito e l'email usa l'indirizzo pubblico stabile della funzione immagini.
 
 Se l'articolo non espone una foto valida, il server sorgente non risponde o
 l'upload fallisce, quella singola immagine viene semplicemente omessa. Il run e la
-bozza Brevo proseguono normalmente. Le altre categorie rimangono testuali.
+campagna Brevo proseguono normalmente. Le altre categorie rimangono testuali.
 
 Netlify deve avere la variabile protetta `SIRACUSA_IMAGE_UPLOAD_TOKEN`; GitHub
 Actions deve avere un secret con lo stesso nome e lo stesso valore. La funzione

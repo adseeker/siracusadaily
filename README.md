@@ -36,14 +36,15 @@ Il sito è esportato staticamente e pubblicato automaticamente su Netlify a ogni
 ## Motore della newsletter
 
 Il backend Python è in `backend/`. Esegue retrieval, classificazione, deduplicazione,
-selezione, scrittura OpenAI e creazione della bozza Brevo. GitHub Actions avvia la
+selezione, scrittura OpenAI e consegna tramite Brevo. GitHub Actions avvia la
 pipeline alle 06:30, ora di Roma; due controlli successivi alle 07:00 e alle 07:30
 recuperano eventuali ritardi o errori temporanei senza creare campagne duplicate.
 
 Le chiavi API sono cifrate nei GitHub Actions Secrets. Il database operativo è
 conservato nel branch privato `automation-state`; HTML e log restano disponibili
-come artifact del run per 7 giorni. La campagna viene creata come bozza e non viene
-inviata automaticamente.
+come artifact del run per 7 giorni. I run schedulati programmano la campagna alle
+08:30 oppure, se terminano tardi, a 15 minuti dal completamento. I run manuali
+restano in modalità bozza e una variabile GitHub funge da kill switch.
 
 Consultare `backend/README.md` per configurazione ed esecuzione.
 

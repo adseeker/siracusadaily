@@ -19,7 +19,8 @@ Il motore scrive nel log:
 - ID del run editoriale;
 - numero di contenuti finali;
 - writer e percorso output;
-- ID campagna e lista Brevo.
+- ID campagna e lista Brevo;
+- stato bozza o programmato e orario previsto di invio.
 
 ## GitHub Actions
 

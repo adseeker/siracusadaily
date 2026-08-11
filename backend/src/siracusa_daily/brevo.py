@@ -4,15 +4,19 @@ from dataclasses import dataclass
 import json
 import os
 import socket
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
 
 
 API_BASE = "https://api.brevo.com/v3"
 DEFAULT_LIST_NAME = "Iscritti SiracusaDaily"
+ROME = ZoneInfo("Europe/Rome")
+DEFAULT_SEND_TIME = time(8, 30)
+DEFAULT_MINIMUM_LEAD_MINUTES = 15
 
 
 class BrevoError(RuntimeError):
@@ -30,6 +34,7 @@ class BrevoCampaignDraft:
     campaign_id: int
     list_id: int
     list_name: str
+    scheduled_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -152,33 +157,124 @@ def find_campaign_for_edition(
         offset += 50
 
 
-def create_campaign_draft(
+def automatic_send_enabled(explicit: str | None = None) -> bool:
+    raw = explicit if explicit is not None else os.getenv("SIRACUSA_AUTO_SEND_ENABLED", "")
+    normalized = raw.strip().casefold()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"", "0", "false", "no", "off"}:
+        return False
+    raise BrevoError(
+        "SIRACUSA_AUTO_SEND_ENABLED deve essere true oppure false; "
+        "programmazione automatica annullata"
+    )
+
+
+def parse_send_time(value: str | None = None) -> time:
+    default_value = DEFAULT_SEND_TIME.strftime("%H:%M")
+    raw = (value or os.getenv("SIRACUSA_BREVO_SEND_TIME", default_value)).strip()
+    try:
+        parsed = datetime.strptime(raw, "%H:%M").time()
+    except ValueError as exc:
+        raise BrevoError("SIRACUSA_BREVO_SEND_TIME deve usare il formato HH:MM") from exc
+    return parsed
+
+
+def campaign_schedule(
+    edition_date: date, *, now: datetime | None = None,
+    target_time: time | None = None, minimum_lead_minutes: int | None = None,
+) -> datetime:
+    if minimum_lead_minutes is None:
+        raw_lead = os.getenv(
+            "SIRACUSA_BREVO_MINIMUM_LEAD_MINUTES",
+            str(DEFAULT_MINIMUM_LEAD_MINUTES),
+        )
+        try:
+            minimum_lead_minutes = int(raw_lead)
+        except ValueError as exc:
+            raise BrevoError(
+                "SIRACUSA_BREVO_MINIMUM_LEAD_MINUTES deve essere un numero intero"
+            ) from exc
+    if not 5 <= minimum_lead_minutes <= 120:
+        raise BrevoError(
+            "SIRACUSA_BREVO_MINIMUM_LEAD_MINUTES deve essere compreso tra 5 e 120"
+        )
+    current = now or datetime.now(ROME)
+    if current.tzinfo is None or current.utcoffset() is None:
+        raise BrevoError("l'orario corrente deve includere il fuso orario")
+    current = current.astimezone(ROME)
+    planned = datetime.combine(
+        edition_date,
+        target_time or parse_send_time(),
+        tzinfo=ROME,
+    )
+    lead = timedelta(minutes=minimum_lead_minutes)
+    if current <= planned - lead:
+        return planned
+    delayed = current + lead
+    if delayed.second or delayed.microsecond:
+        delayed = delayed.replace(second=0, microsecond=0) + timedelta(minutes=1)
+    return delayed
+
+
+def _create_campaign(
     html: str, edition_date: date, subject: str, *, run_id: int,
     list_name: str = DEFAULT_LIST_NAME, api_key: str | None = None,
+    scheduled_at: datetime | None = None,
 ) -> BrevoCampaignDraft:
     if len(html.encode("utf-8")) >= 1_000_000:
         raise BrevoError("HTML della campagna superiore al limite Brevo di 1 MB")
     if len(html.strip()) <= 10:
         raise BrevoError("HTML della campagna vuoto o incompleto")
+    if scheduled_at is not None and (
+        scheduled_at.tzinfo is None or scheduled_at.utcoffset() is None
+    ):
+        raise BrevoError("la programmazione Brevo deve includere il fuso orario")
     target = find_list(list_name, api_key=api_key)
     sender_email = os.getenv("SIRACUSA_BREVO_SENDER", "newsletter@siracusadaily.com")
     sender_name = os.getenv("SIRACUSA_BREVO_SENDER_NAME", "SiracusaDaily")
     reply_to = os.getenv("SIRACUSA_BREVO_REPLY_TO", "ciao@siracusadaily.com")
     name = f"SiracusaDaily | {edition_date:%d/%m/%Y} | run {run_id}"
+    payload: dict[str, Any] = {
+        "name": name,
+        "subject": subject,
+        "sender": {"name": sender_name, "email": sender_email},
+        "replyTo": reply_to,
+        "htmlContent": html,
+        "recipients": {"listIds": [target.list_id]},
+        "utmCampaign": f"SiracusaDaily {edition_date:%Y%m%d}",
+    }
+    if scheduled_at is not None:
+        payload["scheduledAt"] = scheduled_at.isoformat(timespec="milliseconds")
     result = _request(
         "POST", "/emailCampaigns", api_key=api_key,
-        payload={
-            "name": name,
-            "subject": subject,
-            "sender": {"name": sender_name, "email": sender_email},
-            "replyTo": reply_to,
-            "htmlContent": html,
-            "recipients": {"listIds": [target.list_id]},
-            "utmCampaign": f"SiracusaDaily {edition_date:%Y%m%d}",
-        },
+        payload=payload,
     )
     try:
         campaign_id = int(result["id"])
     except (KeyError, TypeError, ValueError) as exc:
         raise BrevoError("Brevo non ha restituito l'ID della campagna") from exc
-    return BrevoCampaignDraft(campaign_id, target.list_id, target.name)
+    return BrevoCampaignDraft(
+        campaign_id, target.list_id, target.name, scheduled_at=scheduled_at,
+    )
+
+
+def create_campaign_draft(
+    html: str, edition_date: date, subject: str, *, run_id: int,
+    list_name: str = DEFAULT_LIST_NAME, api_key: str | None = None,
+) -> BrevoCampaignDraft:
+    return _create_campaign(
+        html, edition_date, subject, run_id=run_id,
+        list_name=list_name, api_key=api_key,
+    )
+
+
+def create_campaign_scheduled(
+    html: str, edition_date: date, subject: str, *, run_id: int,
+    scheduled_at: datetime, list_name: str = DEFAULT_LIST_NAME,
+    api_key: str | None = None,
+) -> BrevoCampaignDraft:
+    return _create_campaign(
+        html, edition_date, subject, run_id=run_id,
+        list_name=list_name, api_key=api_key, scheduled_at=scheduled_at,
+    )

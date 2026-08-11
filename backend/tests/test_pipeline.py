@@ -14,7 +14,10 @@ from zoneinfo import ZoneInfo
 from siracusa_daily.brevo import (
     BrevoError,
     _api_key,
+    automatic_send_enabled,
+    campaign_schedule,
     create_campaign_draft,
+    create_campaign_scheduled,
     find_campaign_for_edition,
     find_list,
 )
@@ -23,6 +26,7 @@ from siracusa_daily.database import (
     connect,
     get_brevo_campaign_for_edition,
     previously_drafted_article_ids,
+    record_brevo_campaign,
     record_brevo_draft,
     record_newsletter,
     upcoming_event_articles,
@@ -446,6 +450,53 @@ class PipelineTests(unittest.TestCase):
         self.assertNotIn("tag", payload)
         self.assertNotIn("previewText", payload)
 
+    def test_brevo_campaign_can_be_created_already_scheduled(self) -> None:
+        responses = [
+            {"lists": [{"id": 11, "name": "Iscritti SiracusaDaily"}]},
+            {"id": 99},
+        ]
+        scheduled_at = datetime(2026, 8, 12, 8, 30, tzinfo=ZoneInfo("Europe/Rome"))
+        with patch("siracusa_daily.brevo._request", side_effect=responses) as request:
+            result = create_campaign_scheduled(
+                "<html><body>Newsletter valida</body></html>",
+                date(2026, 8, 12),
+                "Oggetto valido della newsletter",
+                run_id=7,
+                scheduled_at=scheduled_at,
+                api_key="test",
+            )
+        payload = request.call_args_list[1].kwargs["payload"]
+        self.assertEqual(payload["scheduledAt"], "2026-08-12T08:30:00.000+02:00")
+        self.assertEqual(result.scheduled_at, scheduled_at)
+
+    def test_campaign_schedule_uses_target_when_lead_time_is_available(self) -> None:
+        scheduled_at = campaign_schedule(
+            date(2026, 8, 12),
+            now=datetime(2026, 8, 12, 7, 40, tzinfo=ZoneInfo("Europe/Rome")),
+            minimum_lead_minutes=15,
+        )
+        self.assertEqual(
+            scheduled_at,
+            datetime(2026, 8, 12, 8, 30, tzinfo=ZoneInfo("Europe/Rome")),
+        )
+
+    def test_campaign_schedule_delays_and_rounds_up_when_run_is_late(self) -> None:
+        scheduled_at = campaign_schedule(
+            date(2026, 8, 12),
+            now=datetime(2026, 8, 12, 8, 16, 22, tzinfo=ZoneInfo("Europe/Rome")),
+            minimum_lead_minutes=15,
+        )
+        self.assertEqual(
+            scheduled_at,
+            datetime(2026, 8, 12, 8, 32, tzinfo=ZoneInfo("Europe/Rome")),
+        )
+
+    def test_automatic_send_kill_switch_rejects_unknown_values(self) -> None:
+        self.assertTrue(automatic_send_enabled("true"))
+        self.assertFalse(automatic_send_enabled("false"))
+        with self.assertRaises(BrevoError):
+            automatic_send_enabled("perhaps")
+
     def test_brevo_finds_existing_campaign_for_edition(self) -> None:
         response = {"campaigns": [
             {"id": 90, "name": "Altra campagna", "status": "draft"},
@@ -478,6 +529,31 @@ class PipelineTests(unittest.TestCase):
                 (run_id,),
             ).fetchone()
             self.assertEqual(tuple(row), (99, 11, "brevo_draft"))
+            connection.close()
+
+    def test_brevo_schedule_is_recorded_on_newsletter_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            connection = connect(Path(directory) / "test.db")
+            article = self.article("Siracusa prova campagna programmata")
+            article.article_id = upsert_article(connection, article)
+            run_id = record_newsletter(
+                connection, article.published_at.date().isoformat(), "newsletter.html",
+                [(article, "cluster", 1.0)], writer_name="openai", model="gpt-5-mini",
+            )
+            scheduled_at = datetime(2026, 8, 12, 8, 30, tzinfo=ZoneInfo("Europe/Rome"))
+            record_brevo_campaign(
+                connection, run_id, 99, 11, scheduled_at=scheduled_at,
+            )
+            row = connection.execute(
+                """SELECT brevo_campaign_id, brevo_list_id, delivery_status,
+                          brevo_scheduled_at
+                   FROM newsletter_runs WHERE run_id = ?""",
+                (run_id,),
+            ).fetchone()
+            self.assertEqual(
+                tuple(row),
+                (99, 11, "brevo_scheduled", scheduled_at.isoformat()),
+            )
             connection.close()
 
     def test_existing_brevo_campaign_is_found_by_edition(self) -> None:

@@ -63,7 +63,7 @@ Le tre famiglie di contenuto usano regole diverse.
 ### Notizie
 
 - finestra corrente di produzione: ultime 168 ore;
-- una notizia già inclusa in una precedente bozza Brevo riuscita viene esclusa;
+- una notizia già inclusa in una precedente campagna Brevo riuscita viene esclusa;
 - l'esclusione si estende all'intero cluster, quindi rimuove anche duplicati successivi provenienti da altre fonti.
 
 ### I prossimi eventi

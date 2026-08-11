@@ -40,6 +40,9 @@ jobs:
       SIRACUSA_BREVO_SENDER: newsletter@siracusadaily.com
       SIRACUSA_BREVO_SENDER_NAME: SiracusaDaily
       SIRACUSA_BREVO_REPLY_TO: ciao@siracusadaily.com
+      SIRACUSA_AUTO_SEND_ENABLED: ${{ github.event_name == 'schedule' && vars.SIRACUSA_AUTO_SEND_ENABLED == 'true' && 'true' || 'false' }}
+      SIRACUSA_BREVO_SEND_TIME: "08:30"
+      SIRACUSA_BREVO_MINIMUM_LEAD_MINUTES: "15"
       SIRACUSA_IMAGE_MODE: netlify
       SIRACUSA_IMAGE_UPLOAD_URL: https://siracusadaily.com/.netlify/functions/newsletter-image
       SIRACUSA_IMAGE_PUBLIC_BASE: https://siracusadaily.com/.netlify/functions/newsletter-image
@@ -73,11 +76,15 @@ jobs:
             --database .automation-state/siracusa_daily.db \
             preflight
 
-      - name: Esegue retrieval, selezione, scrittura e bozza Brevo
+      - name: Esegue retrieval, selezione, scrittura e consegna Brevo
         if: github.event_name == 'schedule' || inputs.mode == 'full'
         run: |
           mkdir -p runtime
           set -o pipefail
+          delivery_option="--brevo-draft"
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" ]]; then
+            delivery_option="--brevo-auto-schedule"
+          fi
           siracusa-daily \
             --source-map backend/data/source_map.csv \
             --endpoint-map backend/data/endpoint_map.csv \
@@ -93,7 +100,7 @@ jobs:
             --minimum-items 6 \
             --output runtime/newsletter.html \
             --skip-existing-brevo-date \
-            --brevo-draft 2>&1 | tee runtime/run.log
+            "$delivery_option" 2>&1 | tee runtime/run.log
 
       - name: Consolida il database
         if: always() && (github.event_name == 'schedule' || inputs.mode == 'full')

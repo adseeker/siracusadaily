@@ -67,8 +67,10 @@ Il database viene sottoposto a checkpoint WAL, committato dal bot e usato dal ru
 | Variabile | Utilizzo |
 |---|---|
 | `OPENAI_API_KEY` | Generazione editoriale |
-| `BREVO_API_KEY` | Preflight e creazione bozza |
+| `BREVO_API_KEY` | Preflight, creazione e programmazione campagna |
 | `SIRACUSA_IMAGE_UPLOAD_TOKEN` | Upload protetto delle thumbnail |
+
+La variabile repository `SIRACUSA_AUTO_SEND_ENABLED` non contiene credenziali e agisce da kill switch dell'invio automatico. Deve valere esattamente `true` per i run schedulati.
 
 ## Variabili Netlify
 
@@ -124,7 +126,7 @@ L'acquisizione delle fonti non usa API commerciali aggiuntive.
 - Il retrieval HTML dipende dalla struttura pubblica dei siti e può richiedere manutenzione quando cambia il markup.
 - Le fonti social Meta e LinkedIn non sono automatizzate.
 - Le immagini possono mancare quando una fonte blocca il download o non espone metadati idonei.
-- L'invio resta manuale e richiede una revisione su Brevo.
+- I run schedulati inviano automaticamente; la revisione umana preventiva è disponibile disattivando il kill switch o usando un run manuale.
 - Non esiste ancora un pannello editoriale per modificare la selezione prima della creazione della bozza.
 
 ## Riferimenti nel repository

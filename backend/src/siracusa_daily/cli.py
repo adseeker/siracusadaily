@@ -8,11 +8,20 @@ from pathlib import Path
 from .brevo import (
     BrevoError,
     DEFAULT_LIST_NAME,
+    automatic_send_enabled,
+    campaign_schedule,
     create_campaign_draft,
+    create_campaign_scheduled,
     find_campaign_for_edition,
     find_list,
 )
-from .database import connect, get_brevo_campaign_for_edition, get_newsletter_run, record_brevo_draft
+from .database import (
+    connect,
+    get_brevo_campaign_for_edition,
+    get_newsletter_run,
+    record_brevo_campaign,
+    record_brevo_draft,
+)
 from .pipeline import build_newsletter, ingest
 from .editorial import DEFAULT_MODEL, EditorialError
 from .mailer import MailerError, send_html
@@ -62,6 +71,7 @@ def parser() -> argparse.ArgumentParser:
     build_delivery.add_argument("--send-to", action="append")
     build_delivery.add_argument("--test-send-to", action="append")
     build_delivery.add_argument("--brevo-draft", action="store_true")
+    build_delivery.add_argument("--brevo-auto-schedule", action="store_true")
     build.add_argument("--brevo-list", default=DEFAULT_LIST_NAME)
     build.add_argument("--subject")
     build.add_argument("--minimum-items", type=int, default=0)
@@ -81,6 +91,7 @@ def parser() -> argparse.ArgumentParser:
     run_delivery.add_argument("--send-to", action="append")
     run_delivery.add_argument("--test-send-to", action="append")
     run_delivery.add_argument("--brevo-draft", action="store_true")
+    run_delivery.add_argument("--brevo-auto-schedule", action="store_true")
     run.add_argument("--brevo-list", default=DEFAULT_LIST_NAME)
     run.add_argument("--subject")
     run.add_argument("--minimum-items", type=int, default=0)
@@ -105,6 +116,11 @@ def main() -> None:
             raise SystemExit(f"Preflight fallito: {exc}") from exc
         edition_date = args.date or date.today()
         existing = _remote_campaign_or_exit(edition_date)
+        try:
+            auto_send = automatic_send_enabled()
+            planned = campaign_schedule(edition_date) if auto_send else None
+        except BrevoError as exc:
+            raise SystemExit(f"Preflight fallito: {exc}") from exc
         campaign = (
             f"campagna #{existing.campaign_id} ({existing.status}) già presente"
             if existing is not None else "nessuna campagna ancora presente"
@@ -112,6 +128,7 @@ def main() -> None:
         print(
             f"Preflight riuscito: database disponibile; lista Brevo '{target.name}' "
             f"(ID {target.list_id}); {campaign} per {edition_date.isoformat()}; "
+            f"invio automatico {'attivo per ' + planned.isoformat() if planned else 'disattivato'}; "
             "OPENAI_API_KEY configurata."
         )
         return
@@ -158,9 +175,13 @@ def main() -> None:
         )
         print("Apri Brevo > Marketing > Campagne per controllarla. Nessun invio è stato eseguito.")
         return
+    brevo_delivery = bool(
+        getattr(args, "brevo_draft", False)
+        or getattr(args, "brevo_auto_schedule", False)
+    )
     if args.command == "run" and args.skip_existing_brevo_date:
         edition_date = args.date or date.today()
-        if args.brevo_draft:
+        if brevo_delivery:
             existing_remote = _remote_campaign_or_exit(edition_date)
             if existing_remote is not None:
                 print(
@@ -199,26 +220,26 @@ def main() -> None:
         run_id, count, writer_used, generated_subject = build_newsletter(
             args.source_map, args.database, args.output, getattr(args, "date", None), args.lookback_hours,
             args.limit, args.writer, args.model,
-            unsubscribe_url="{{ unsubscribe }}" if args.brevo_draft else None,
+            unsubscribe_url="{{ unsubscribe }}" if brevo_delivery else None,
             event_limit=args.event_limit,
             opportunity_limit=args.opportunity_limit,
         )
     except EditorialError as exc:
         raise SystemExit(f"Writer OpenAI non disponibile: {exc}") from exc
     print(f"Newsletter #{run_id}: {count} notizie; writer={writer_used} -> {args.output}")
-    if args.brevo_draft:
+    if brevo_delivery:
         if writer_used != "openai":
-            raise SystemExit("Bozza Brevo annullata: una newsletter fallback non può essere pubblicata")
+            raise SystemExit("Campagna Brevo annullata: una newsletter fallback non può essere pubblicata")
         if args.output.suffix.lower() != ".html":
-            raise SystemExit("Per creare una bozza Brevo, usa un file --output con estensione .html")
+            raise SystemExit("Per creare una campagna Brevo, usa un file --output con estensione .html")
         if count < args.minimum_items:
             raise SystemExit(
-                f"Bozza Brevo annullata: solo {count} notizie, minimo richiesto {args.minimum_items}"
+                f"Campagna Brevo annullata: solo {count} notizie, minimo richiesto {args.minimum_items}"
             )
         edition_date = getattr(args, "date", None) or date.today()
         subject = args.subject or generated_subject
         if not subject:
-            raise SystemExit("Bozza Brevo annullata: il writer non ha prodotto un oggetto valido")
+            raise SystemExit("Campagna Brevo annullata: il writer non ha prodotto un oggetto valido")
         # A second authoritative check closes the window between the initial
         # preflight and campaign creation (manual retriggers, retries, stale state).
         existing_remote = _remote_campaign_or_exit(edition_date)
@@ -229,22 +250,46 @@ def main() -> None:
             )
             return
         try:
-            draft = create_campaign_draft(
-                args.output.read_text(encoding="utf-8"), edition_date, subject,
-                run_id=run_id, list_name=args.brevo_list,
-            )
+            scheduled_at = None
+            if getattr(args, "brevo_auto_schedule", False) and automatic_send_enabled():
+                scheduled_at = campaign_schedule(edition_date)
+                draft = create_campaign_scheduled(
+                    args.output.read_text(encoding="utf-8"), edition_date, subject,
+                    run_id=run_id, scheduled_at=scheduled_at, list_name=args.brevo_list,
+                )
+            else:
+                draft = create_campaign_draft(
+                    args.output.read_text(encoding="utf-8"), edition_date, subject,
+                    run_id=run_id, list_name=args.brevo_list,
+                )
             connection = connect(args.database)
             try:
-                record_brevo_draft(connection, run_id, draft.campaign_id, draft.list_id)
+                record_brevo_campaign(
+                    connection, run_id, draft.campaign_id, draft.list_id,
+                    scheduled_at=scheduled_at,
+                )
             finally:
                 connection.close()
         except (BrevoError, OSError) as exc:
-            raise SystemExit(f"Bozza Brevo non creata: {exc}") from exc
-        print(
-            f"Bozza Brevo creata: campagna #{draft.campaign_id}; "
-            f"lista '{draft.list_name}' (ID {draft.list_id})"
-        )
-        print("Apri Brevo > Marketing > Campagne per controllarla. Nessun invio è stato eseguito.")
+            raise SystemExit(f"Campagna Brevo non creata: {exc}") from exc
+        if scheduled_at is not None:
+            print(
+                f"Campagna Brevo programmata: campagna #{draft.campaign_id}; "
+                f"lista '{draft.list_name}' (ID {draft.list_id}); "
+                f"invio {scheduled_at.isoformat()}"
+            )
+        else:
+            print(
+                f"Bozza Brevo creata: campagna #{draft.campaign_id}; "
+                f"lista '{draft.list_name}' (ID {draft.list_id})"
+            )
+            if getattr(args, "brevo_auto_schedule", False):
+                print(
+                    "Invio automatico disattivato dal kill switch; "
+                    "la campagna resta in bozza."
+                )
+            else:
+                print("Apri Brevo > Marketing > Campagne per controllarla. Nessun invio è stato eseguito.")
         return
     recipients = args.send_to or args.test_send_to
     if recipients:

@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS newsletter_runs (
   model TEXT NOT NULL DEFAULT '',
   brevo_campaign_id INTEGER,
   brevo_list_id INTEGER,
+  brevo_scheduled_at TEXT NOT NULL DEFAULT '',
   delivery_status TEXT NOT NULL DEFAULT 'local',
   email_subject TEXT NOT NULL DEFAULT ''
 );
@@ -76,6 +77,10 @@ def connect(path: Path) -> sqlite3.Connection:
         connection.execute("ALTER TABLE newsletter_runs ADD COLUMN brevo_campaign_id INTEGER")
     if "brevo_list_id" not in run_columns:
         connection.execute("ALTER TABLE newsletter_runs ADD COLUMN brevo_list_id INTEGER")
+    if "brevo_scheduled_at" not in run_columns:
+        connection.execute(
+            "ALTER TABLE newsletter_runs ADD COLUMN brevo_scheduled_at TEXT NOT NULL DEFAULT ''"
+        )
     if "delivery_status" not in run_columns:
         connection.execute("ALTER TABLE newsletter_runs ADD COLUMN delivery_status TEXT NOT NULL DEFAULT 'local'")
     if "email_subject" not in run_columns:
@@ -219,19 +224,29 @@ def record_newsletter(
     return run_id
 
 
-def record_brevo_draft(
+def record_brevo_campaign(
     connection: sqlite3.Connection, run_id: int, campaign_id: int, list_id: int,
+    scheduled_at: datetime | None = None,
 ) -> None:
+    status = "brevo_scheduled" if scheduled_at is not None else "brevo_draft"
+    scheduled_value = scheduled_at.isoformat() if scheduled_at is not None else ""
     cursor = connection.execute(
         """UPDATE newsletter_runs
-           SET brevo_campaign_id = ?, brevo_list_id = ?, delivery_status = 'brevo_draft'
+           SET brevo_campaign_id = ?, brevo_list_id = ?, brevo_scheduled_at = ?,
+               delivery_status = ?
            WHERE run_id = ?""",
-        (campaign_id, list_id, run_id),
+        (campaign_id, list_id, scheduled_value, status, run_id),
     )
     if cursor.rowcount != 1:
         connection.rollback()
         raise ValueError(f"newsletter run non trovato: {run_id}")
     connection.commit()
+
+
+def record_brevo_draft(
+    connection: sqlite3.Connection, run_id: int, campaign_id: int, list_id: int,
+) -> None:
+    record_brevo_campaign(connection, run_id, campaign_id, list_id)
 
 
 def get_newsletter_run(connection: sqlite3.Connection, run_id: int) -> sqlite3.Row | None:

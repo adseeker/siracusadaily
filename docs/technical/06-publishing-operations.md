@@ -19,7 +19,7 @@ I recuperi eseguono il controllo Brevo prima del retrieval. Se la campagna esist
 È disponibile anche `workflow_dispatch` con due modalità:
 
 - `preflight`: verifica l'infrastruttura senza generare contenuti;
-- `full`: esegue l'intera pipeline e crea la bozza.
+- `full`: esegue l'intera pipeline e crea una bozza senza inviarla.
 
 ## Idempotenza e concorrenza
 
@@ -38,9 +38,12 @@ La campagna viene creata nella lista `Iscritti SiracusaDaily`, attualmente ID 7,
 - contenuto HTML completo;
 - oggetto generato e validato;
 - parametro UTM `SiracusaDaily YYYYMMDD`;
-- stato iniziale di bozza.
+- programmazione automatica nei run schedulati;
+- stato di bozza nei run manuali o quando il kill switch è disattivato.
 
-L'invio non è automatizzato. Un operatore apre Brevo, controlla contenuti e anteprima e decide quando inviare o programmare.
+L'orario ordinario è 08:30, `Europe/Rome`. Se la produzione termina dopo le 08:15, Brevo viene programmato a 15 minuti dal completamento, con arrotondamento al minuto successivo. `SIRACUSA_AUTO_SEND_ENABLED` deve essere `true`; qualsiasi valore falso riconosciuto mantiene la campagna in bozza, mentre un valore non valido blocca il preflight.
+
+Il comando manuale `workflow_dispatch` in modalità `full` crea sempre una bozza e non programma l'invio. In questo modo i test o le rigenerazioni manuali non possono spedire accidentalmente una campagna.
 
 ## Iscrizione utenti
 
@@ -66,6 +69,6 @@ scripts/run_daily.sh
 
 Il run locale usa `backend/runtime/` per database, HTML e log. Le immagini sono disattivate per impostazione predefinita; per pubblicarle su Netlify servono modalità `netlify` e token dedicato.
 
-Il LaunchAgent macOS incluso è soltanto una procedura di emergenza. Non deve essere attivo insieme a GitHub Actions; il suo plist storico è configurato alle 09:30.
+Il LaunchAgent macOS incluso è soltanto una procedura di emergenza. Non deve essere attivo insieme a GitHub Actions; il suo plist storico è configurato alle 09:30 e resta in modalità bozza salvo configurazione locale esplicita.
 
 [← Precedente: Quality Assurance](05-quality-assurance.md) · [Successivo: Monitoring e logging →](07-monitoring-logging.md)

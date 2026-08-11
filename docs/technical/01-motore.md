@@ -17,7 +17,7 @@ Il processo è progettato per:
 - mantenere una copertura equilibrata delle categorie;
 - non far dominare stabilmente una singola testata;
 - trattare eventi e opportunità con logiche temporali diverse dalle notizie;
-- produrre una bozza completa ma non inviarla automaticamente;
+- programmare l'invio soltanto dopo il superamento di tutti i gate;
 - interrompere la pubblicazione quando viene meno un controllo essenziale.
 
 ## Componenti principali
@@ -39,7 +39,7 @@ Il backend è un package Python chiamato `siracusa-daily`, compatibile con Pytho
 | `editorial.py` | Pacchetto evidenze, chiamata OpenAI, validazioni, riparazioni e oggetto |
 | `images.py` | Estrazione, ottimizzazione e pubblicazione delle thumbnail |
 | `writer.py` | Rendering deterministico Markdown o HTML |
-| `brevo.py` | Controllo campagne, risoluzione lista e creazione della bozza |
+| `brevo.py` | Controllo campagne, risoluzione lista, creazione e programmazione Brevo |
 | `pipeline.py` | Orchestrazione di ingestione e costruzione dell'edizione |
 | `cli.py` | Interfaccia operativa e controlli di pubblicazione |
 
@@ -65,7 +65,7 @@ limite eventi: 8
 limite opportunità: 6
 minimo contenuti pubblicabili: 6
 output: HTML
-destinazione: bozza Brevo
+destinazione: campagna Brevo programmata nei run automatici, bozza nei run manuali
 ```
 
 [Successivo: Fonti e acquisizione →](02-fonti-acquisizione.md)

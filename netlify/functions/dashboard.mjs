@@ -264,7 +264,7 @@ async function githubMetrics(days) {
   const stepNames = new Map([
     ["Installa e verifica il motore", "Setup e test"],
     ["Verifica chiavi, database e Brevo", "Preflight"],
-    ["Esegue retrieval, selezione, scrittura e bozza Brevo", "Motore editoriale"],
+    ["Esegue retrieval, selezione, scrittura e consegna Brevo", "Motore editoriale"],
     ["Consolida il database", "Database"],
     ["Salva lo storico per il giorno successivo", "Persistenza"],
     ["Conserva HTML e log del run", "Archiviazione"],
