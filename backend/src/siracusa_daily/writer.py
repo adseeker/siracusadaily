@@ -19,6 +19,10 @@ CATEGORY_COLORS = {
     "Lavoro e opportunità": "#a16207",
 }
 
+CATEGORY_LABELS = {
+    "Eventi": "I prossimi eventi",
+}
+
 
 def _display_text(value: str) -> str:
     return value.replace("—", "-")
@@ -38,7 +42,7 @@ def render_markdown(
         category_clusters = grouped.get(category, [])
         if not category_clusters:
             continue
-        lines.extend([f"## {category}", ""])
+        lines.extend([f"## {CATEGORY_LABELS.get(category, category)}", ""])
         for cluster in category_clusters:
             index += 1
             article = cluster.representative
@@ -124,7 +128,7 @@ def render_html(
             color = CATEGORY_COLORS[category]
             sections.append(f'''<tr><td style="height:28px;background:#ffffff;font-size:0;line-height:0;">&nbsp;</td></tr>
             <tr><td class="sd-section-title" style="padding:14px 28px;background:{color};">
-              <h2 style="margin:0;font:700 16px/1.3 Arial,sans-serif;letter-spacing:.8px;text-transform:uppercase;color:#ffffff;">{escape(category)}</h2>
+              <h2 style="margin:0;font:700 16px/1.3 Arial,sans-serif;letter-spacing:.8px;text-transform:uppercase;color:#ffffff;">{escape(CATEGORY_LABELS.get(category, category))}</h2>
             </td></tr>
             <tr><td class="sd-section-body" style="padding:0 28px 6px;background:#ffffff;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">{''.join(cards)}</table>

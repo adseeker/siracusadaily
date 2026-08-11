@@ -149,7 +149,7 @@ Assegna semanticamente una sola section tra quelle consentite dallo schema:
 - Politica ed economia: istituzioni, amministrazione, imprese, lavoro economico, credito, mutui, commercio e industria;
 - Cultura: arte, teatro, libri, musica, patrimonio e spettacolo culturale;
 - Sport: squadre, gare, risultati e impianti sportivi;
-- Eventi: appuntamenti futuri aperti alla partecipazione;
+- Eventi: appuntamenti futuri aperti alla partecipazione. Se il candidato contiene date_label Inizio o Data e una reference_date futura, mantienilo obbligatoriamente in questa sezione;
 - Servizi e utilità: acqua, viabilità, trasporti, rifiuti, meteo e avvisi operativi;
 - Lavoro e opportunità: concorsi, selezioni, bandi, formazione e offerte di lavoro.
 Classifica il contenuto reale, non limitarti all'etichetta generica fornita dalla fonte.

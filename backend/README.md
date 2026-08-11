@@ -19,6 +19,13 @@ Il workflow:
 - apre una issue GitHub se fallisce;
 - crea soltanto una bozza Brevo, senza inviarla.
 
+La sezione `I prossimi eventi` usa una logica distinta dalle notizie: legge gli
+eventi strutturati già conservati nel database, seleziona quelli compresi tra il
+giorno dell'edizione e i sei giorni successivi, mantiene gli appuntamenti ancora
+in corso e li ordina cronologicamente. Gli eventi possono ricomparire nelle
+edizioni successive finché restano nella finestra; il limite operativo
+predefinito è 8 e si modifica con `--event-limit`.
+
 L'oggetto non può essere guidato da decessi, incidenti gravi, violenza, vittime,
 cronaca nera o altre formulazioni emotivamente forti. Queste notizie possono
 restare nel corpo dell'edizione; un controllo deterministico obbliga l'oggetto a

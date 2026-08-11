@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
+from .events import event_is_in_window, event_sort_key
 from .models import Article
 
 SCHEMA = """
@@ -106,22 +107,43 @@ def upsert_article(connection: sqlite3.Connection, article: Article) -> int:
     return int(row["article_id"])
 
 
-def recent_articles(connection: sqlite3.Connection, since: datetime, minimum_local_score: float = 0.55) -> list[Article]:
-    rows = connection.execute(
-        "SELECT * FROM articles WHERE published_at >= ? AND local_score >= ? ORDER BY published_at DESC",
-        (since.astimezone(timezone.utc).isoformat(), minimum_local_score),
-    ).fetchall()
-    result: list[Article] = []
-    for row in rows:
-        result.append(Article(
+def _articles_from_rows(rows: list[sqlite3.Row]) -> list[Article]:
+    return [
+        Article(
             article_id=row["article_id"], source_id=row["source_id"], endpoint_id=row["endpoint_id"],
             title=row["title"], url=row["canonical_url"], excerpt=row["excerpt"], author=row["author"],
             published_at=datetime.fromisoformat(row["published_at"]),
             retrieved_at=datetime.fromisoformat(row["retrieved_at"]),
             content_buckets=tuple(json.loads(row["content_buckets"])), local_score=row["local_score"],
             local_reasons=tuple(json.loads(row["local_reasons"])), metadata=json.loads(row["metadata"]),
-        ))
-    return result
+        )
+        for row in rows
+    ]
+
+
+def recent_articles(connection: sqlite3.Connection, since: datetime, minimum_local_score: float = 0.55) -> list[Article]:
+    rows = connection.execute(
+        "SELECT * FROM articles WHERE published_at >= ? AND local_score >= ? ORDER BY published_at DESC",
+        (since.astimezone(timezone.utc).isoformat(), minimum_local_score),
+    ).fetchall()
+    return _articles_from_rows(rows)
+
+
+def upcoming_event_articles(
+    connection: sqlite3.Connection, edition_date: date, days: int = 7,
+    minimum_local_score: float = 0.55,
+) -> list[Article]:
+    rows = connection.execute(
+        """SELECT * FROM articles
+           WHERE local_score >= ?
+             AND json_extract(metadata, '$.date_label') IN ('Inizio', 'Data')""",
+        (minimum_local_score,),
+    ).fetchall()
+    events = [
+        article for article in _articles_from_rows(rows)
+        if event_is_in_window(article, edition_date, days)
+    ]
+    return sorted(events, key=event_sort_key)
 
 
 def last_source_positions(connection: sqlite3.Connection) -> dict[str, int]:

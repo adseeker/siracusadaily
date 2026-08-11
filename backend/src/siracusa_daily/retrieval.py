@@ -109,7 +109,19 @@ def _html_text(value: str) -> str:
 
 
 def _parse_local_date(value: str) -> datetime:
+    parsed = _parse_optional_local_date(value)
+    return parsed or datetime.now(timezone.utc)
+
+
+def _parse_optional_local_date(value: str) -> datetime | None:
     value = _html_text(value).strip()
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return parsed.replace(tzinfo=ROME).astimezone(timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+    except ValueError:
+        pass
     for pattern in ("%d/%m/%Y", "%d/%m/%y", "%Y-%m-%d", "%Y-%m-%dT%H:%M:%S%z"):
         try:
             parsed = datetime.strptime(value, pattern)
@@ -119,7 +131,19 @@ def _parse_local_date(value: str) -> datetime:
     match = re.search(r"(\d{1,2})\s+([A-Za-zà-ù]+)\s+(\d{4})", value.lower())
     if match and match.group(2) in ITALIAN_MONTHS:
         return datetime(int(match.group(3)), ITALIAN_MONTHS[match.group(2)], int(match.group(1)), tzinfo=ROME).astimezone(timezone.utc)
-    return datetime.now(timezone.utc)
+    return None
+
+
+def _event_metadata(start: datetime, end: datetime | None = None, **values: str) -> dict[str, str]:
+    metadata = {
+        "date_label": "Inizio",
+        "reference_date": start.isoformat(),
+        "event_start": start.isoformat(),
+        **values,
+    }
+    if end is not None:
+        metadata["event_end"] = end.isoformat()
+    return metadata
 
 
 def _json_nodes(value):
@@ -157,7 +181,17 @@ def _eventbrite_articles(document: str, endpoint: Endpoint, limit: int) -> list[
             try:
                 start = datetime.fromisoformat(f"{date_value}T{time_value}").replace(tzinfo=ROME).astimezone(timezone.utc)
             except ValueError:
-                start = _parse_local_date(date_value)
+                start = _parse_optional_local_date(date_value)
+            if start is None:
+                continue
+            end = None
+            end_date = event.get("end_date", "")
+            if end_date:
+                end_time = event.get("end_time", "00:00") or "00:00"
+                try:
+                    end = datetime.fromisoformat(f"{end_date}T{end_time}").replace(tzinfo=ROME).astimezone(timezone.utc)
+                except ValueError:
+                    end = _parse_optional_local_date(end_date)
             venue = event.get("primary_venue") or {}
             address = venue.get("address") or {}
             location_text = " · ".join(str(value) for value in (
@@ -168,7 +202,7 @@ def _eventbrite_articles(document: str, endpoint: Endpoint, limit: int) -> list[
                 source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id, title=_html_text(event["name"]),
                 url=url, published_at=start, excerpt=" — ".join(value for value in (summary, location_text) if value),
                 author="Eventbrite", content_buckets=endpoint.content_buckets,
-                metadata={"date_label": "Inizio", "reference_date": start.isoformat(), "location": location_text},
+                metadata=_event_metadata(start, end, location=location_text),
             ))
             if len(parsed) >= limit:
                 return parsed
@@ -198,14 +232,17 @@ def _eventbrite_articles(document: str, endpoint: Endpoint, limit: int) -> list[
                     address.get("streetAddress"), address.get("addressLocality"), address.get("addressRegion"),
                 ) if value
             )
-            start = _parse_local_date(str(node.get("startDate", "")))
+            start = _parse_optional_local_date(str(node.get("startDate", "")))
+            if start is None:
+                continue
+            end = _parse_optional_local_date(str(node.get("endDate", "")))
             description = _html_text(str(node.get("description", "")))
             excerpt = " — ".join(value for value in (description, location_text) if value)
             articles.append(Article(
                 source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id, title=_html_text(str(node["name"])),
                 url=url, published_at=start, excerpt=excerpt, author="Eventbrite",
                 content_buckets=endpoint.content_buckets,
-                metadata={"date_label": "Inizio", "reference_date": start.isoformat(), "location": location_text},
+                metadata=_event_metadata(start, end, location=location_text),
             ))
             if len(articles) >= limit:
                 return articles
@@ -220,13 +257,18 @@ def _comune_articles(document: str, endpoint: Endpoint, limit: int) -> list[Arti
     )
     articles: list[Article] = []
     for match in pattern.finditer(document):
-        published = _parse_local_date(match.group("date"))
+        published = _parse_optional_local_date(match.group("date"))
+        if published is None:
+            continue
         articles.append(Article(
             source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id,
             title=_html_text(match.group("title")), url=canonical_url(urljoin(endpoint.url, match.group("url"))),
             published_at=published, excerpt=_html_text(match.group("excerpt")), author="Comune di Siracusa",
             content_buckets=endpoint.content_buckets,
-            metadata={"date_label": "Data", "reference_date": published.isoformat()},
+            metadata={
+                "date_label": "Data", "reference_date": published.isoformat(),
+                "event_start": published.isoformat(),
+            },
         ))
         if len(articles) >= limit:
             break

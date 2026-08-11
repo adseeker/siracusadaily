@@ -6,7 +6,7 @@ import tempfile
 import unittest
 import urllib.error
 from unittest.mock import patch
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -23,6 +23,7 @@ from siracusa_daily.database import (
     previously_drafted_article_ids,
     record_brevo_draft,
     record_newsletter,
+    upcoming_event_articles,
     upsert_article,
 )
 from siracusa_daily.categories import classify_article
@@ -38,6 +39,7 @@ from siracusa_daily.editorial import (
     validate_items,
 )
 from siracusa_daily.geography import evaluate_locality
+from siracusa_daily.events import event_is_in_window, sort_event_clusters
 from siracusa_daily.mailer import MailerError, send_html
 from siracusa_daily.models import Article, Source, StoryCluster
 from siracusa_daily.models import Endpoint
@@ -106,6 +108,66 @@ class PipelineTests(unittest.TestCase):
         economy.content_buckets = ("economia",)
         self.assertEqual(classify_article(event), "Eventi")
         self.assertEqual(classify_article(economy), "Politica ed economia")
+
+    def test_event_window_contains_today_and_the_next_six_days(self) -> None:
+        edition = date(2026, 8, 16)  # Sunday
+
+        def event(day: int) -> Article:
+            article = self.article(f"Evento del {day} agosto")
+            start = datetime(2026, 8, day, 18, 0, tzinfo=ZoneInfo("Europe/Rome")).astimezone(timezone.utc)
+            article.metadata = {
+                "date_label": "Inizio", "reference_date": start.isoformat(),
+                "event_start": start.isoformat(),
+            }
+            return article
+
+        self.assertTrue(event_is_in_window(event(16), edition))
+        self.assertTrue(event_is_in_window(event(22), edition))
+        self.assertFalse(event_is_in_window(event(15), edition))
+        self.assertFalse(event_is_in_window(event(23), edition))
+
+    def test_event_window_keeps_an_event_already_in_progress(self) -> None:
+        article = self.article("Festival in corso")
+        start = datetime(2026, 8, 15, 18, 0, tzinfo=ZoneInfo("Europe/Rome")).astimezone(timezone.utc)
+        end = datetime(2026, 8, 16, 22, 0, tzinfo=ZoneInfo("Europe/Rome")).astimezone(timezone.utc)
+        article.metadata = {
+            "date_label": "Inizio", "reference_date": start.isoformat(),
+            "event_start": start.isoformat(), "event_end": end.isoformat(),
+        }
+        self.assertTrue(event_is_in_window(article, date(2026, 8, 16)))
+
+    def test_upcoming_events_ignore_the_article_publication_date(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            connection = connect(Path(directory) / "test.db")
+            event = self.article("Evento annunciato un mese prima")
+            event.published_at = datetime(2026, 7, 1, tzinfo=timezone.utc)
+            start = datetime(2026, 8, 18, 19, 0, tzinfo=ZoneInfo("Europe/Rome")).astimezone(timezone.utc)
+            event.metadata = {
+                "date_label": "Inizio", "reference_date": start.isoformat(),
+                "event_start": start.isoformat(),
+            }
+            event.local_score = 0.9
+            upsert_article(connection, event)
+
+            result = upcoming_event_articles(connection, date(2026, 8, 16))
+
+            self.assertEqual([article.title for article in result], [event.title])
+            connection.close()
+
+    def test_event_clusters_are_sorted_by_start_time(self) -> None:
+        late = self.article("Evento serale")
+        early = self.article("Evento pomeridiano")
+        for article, hour in ((late, 21), (early, 17)):
+            start = datetime(2026, 8, 18, hour, tzinfo=ZoneInfo("Europe/Rome")).astimezone(timezone.utc)
+            article.metadata = {
+                "date_label": "Inizio", "reference_date": start.isoformat(),
+                "event_start": start.isoformat(),
+            }
+        clusters = [
+            StoryCluster("late", [late], representative=late, category="Eventi"),
+            StoryCluster("early", [early], representative=early, category="Eventi"),
+        ]
+        self.assertEqual([cluster.key for cluster in sort_event_clusters(clusters)], ["early", "late"])
 
     def test_database_upsert(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -566,6 +628,21 @@ class PipelineTests(unittest.TestCase):
         self.assertNotIn("Bozza generata automaticamente", output)
         self.assertNotIn("Le informazioni locali da conoscere oggi.", output)
 
+    def test_event_section_uses_the_next_events_heading(self) -> None:
+        article = self.article("Concerto a Siracusa")
+        article.content_buckets = ("eventi",)
+        start = datetime(2026, 8, 12, 21, tzinfo=ZoneInfo("Europe/Rome")).astimezone(timezone.utc)
+        article.metadata = {
+            "date_label": "Inizio", "reference_date": start.isoformat(),
+            "event_start": start.isoformat(),
+        }
+        cluster = StoryCluster("event", [article], representative=article, category="Eventi")
+        markdown = render_markdown(date(2026, 8, 11), [cluster], {"SRC-A": self.source})
+        html = render_html(date(2026, 8, 11), [cluster], {"SRC-A": self.source})
+        self.assertIn("## I prossimi eventi", markdown)
+        self.assertIn("I prossimi eventi", html)
+        self.assertNotIn(">Eventi</h2>", html)
+
     def test_brevo_html_has_an_italian_unsubscribe_link(self) -> None:
         article = self.article("Siracusa, una notizia locale")
         cluster = StoryCluster("story-1", [article], score=0.9, representative=article)
@@ -616,11 +693,13 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(rows[0].metadata["date_label"], "Inizio")
 
     def test_eventbrite_server_data_preserves_time(self) -> None:
-        payload = '{"search_data":{"events":{"results":[{"name":"Evento serale","url":"https://eventbrite.com/e/2","start_date":"2026-08-12","start_time":"18:30","summary":"A Siracusa","primary_venue":{"name":"Ortigia","address":{"city":"Siracusa"}}}]}}}'
+        payload = '{"search_data":{"events":{"results":[{"name":"Evento serale","url":"https://eventbrite.com/e/2","start_date":"2026-08-12","start_time":"18:30","end_date":"2026-08-12","end_time":"21:00","summary":"A Siracusa","primary_venue":{"name":"Ortigia","address":{"city":"Siracusa"}}}]}}}'
         document = f'<script>window.__SERVER_DATA__ = {payload};</script>'
         rows = _eventbrite_articles(document, self.endpoint(url="https://eventbrite.com/test"), 10)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].published_at.astimezone(ZoneInfo("Europe/Rome")).strftime("%H:%M"), "18:30")
+        self.assertIn("event_start", rows[0].metadata)
+        self.assertIn("event_end", rows[0].metadata)
 
     def test_comune_card_parser(self) -> None:
         document = '''<span class="data_num">12/08/26</span><h3><a class="card-title" href="/evento/test">Evento civico</a></h3><p class="body-description">Incontro a Siracusa</p>'''

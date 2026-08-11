@@ -54,6 +54,7 @@ def parser() -> argparse.ArgumentParser:
     build.add_argument("--date", type=date.fromisoformat)
     build.add_argument("--lookback-hours", type=int, default=72)
     build.add_argument("--limit", type=int, default=8)
+    build.add_argument("--event-limit", type=int, default=8)
     build.add_argument("--writer", choices=["openai", "fallback"], default="openai")
     build.add_argument("--model", default=DEFAULT_MODEL)
     build_delivery = build.add_mutually_exclusive_group()
@@ -71,6 +72,7 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--method", action="append", choices=["rss", "web_html"])
     run.add_argument("--lookback-hours", type=int, default=72)
     run.add_argument("--limit", type=int, default=8)
+    run.add_argument("--event-limit", type=int, default=8)
     run.add_argument("--writer", choices=["openai", "fallback"], default="openai")
     run.add_argument("--model", default=DEFAULT_MODEL)
     run_delivery = run.add_mutually_exclusive_group()
@@ -191,6 +193,7 @@ def main() -> None:
             args.source_map, args.database, args.output, getattr(args, "date", None), args.lookback_hours,
             args.limit, args.writer, args.model,
             unsubscribe_url="{{ unsubscribe }}" if args.brevo_draft else None,
+            event_limit=args.event_limit,
         )
     except EditorialError as exc:
         raise SystemExit(f"Writer OpenAI non disponibile: {exc}") from exc

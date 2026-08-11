@@ -71,7 +71,7 @@ export default function Home() {
               <span>Politica ed economia</span>
               <span>Cultura</span>
               <span>Sport</span>
-              <span>Eventi</span>
+              <span>I prossimi eventi</span>
               <span>Servizi e utilità</span>
               <span>Lavoro e opportunità</span>
             </div>
@@ -119,7 +119,7 @@ export default function Home() {
                   </article>
                 </div>
                 <div className="phone-newsletter-section phone-newsletter-events">
-                  <div className="phone-category">Eventi</div>
+                  <div className="phone-category">I prossimi eventi</div>
                   <article>
                     <strong>Frutta Fresca Home Edition a Palazzolo Acreide</strong>
                     <p>La quarta edizione torna in via Soccorso 7.</p>

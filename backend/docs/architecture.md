@@ -42,5 +42,6 @@ Source map → Adapter retrieval → Articoli normalizzati → Filtro geografico
 
 - Eventbrite: dati incorporati `__SERVER_DATA__`, con data, ora, venue e filtro della provincia.
 - Comune di Siracusa: card di eventi; comunicati, avvisi e concorsi continuano a preferire RSS.
+- Agenda eventi: finestra mobile di sette giorni a partire dalla data dell'edizione; usa la data dell'evento, non quella di pubblicazione, e conserva gli appuntamenti futuri nel database fino alla conclusione.
 - ConcorsiPubblici.com: solo bandi attivi, con scadenza e descrizione; resta obbligatoria la verifica primaria.
 - ASP Siracusa: card delle procedure aperte, data di pubblicazione e permalink.

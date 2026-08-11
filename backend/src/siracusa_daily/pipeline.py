@@ -11,10 +11,12 @@ from .database import (
     last_source_positions,
     previously_drafted_article_ids,
     recent_articles,
+    upcoming_event_articles,
     record_newsletter,
     upsert_article,
 )
 from .geography import evaluate_locality
+from .events import is_dated_event, sort_event_clusters
 from .retrieval import RetrievalError, retrieve_html, retrieve_rss
 from .selection import select_stories
 from .writer import render_html, render_markdown, save_html, save_markdown
@@ -69,15 +71,16 @@ def ingest(
 def build_newsletter(
     source_map: Path, database: Path, output: Path, edition_date: date | None = None,
     lookback_hours: int = 72, limit: int = 8, writer_mode: str = "openai", model: str = DEFAULT_MODEL,
-    unsubscribe_url: str | None = None,
+    unsubscribe_url: str | None = None, event_limit: int = 8,
 ) -> tuple[int, int, str, str]:
     edition_date = edition_date or date.today()
     sources = load_sources(source_map)
     connection = connect(database)
     try:
-        articles = recent_articles(connection, datetime.now(timezone.utc) - timedelta(hours=lookback_hours))
-        clusters = select_stories(
-            articles,
+        recent = recent_articles(connection, datetime.now(timezone.utc) - timedelta(hours=lookback_hours))
+        news_articles = [article for article in recent if not is_dated_event(article)]
+        news_clusters = select_stories(
+            news_articles,
             sources,
             last_source_positions(connection),
             limit=limit,
@@ -85,6 +88,14 @@ def build_newsletter(
                 connection, edition_date.isoformat(),
             ),
         )
+        event_articles = upcoming_event_articles(connection, edition_date, days=7)
+        event_clusters = select_stories(
+            event_articles, sources, last_source_positions(connection),
+            limit=event_limit, max_per_source=max(1, event_limit),
+        )
+        for cluster in event_clusters:
+            cluster.category = "Eventi"
+        clusters = news_clusters + sort_event_clusters(event_clusters)
         selected_clusters = list(clusters)
         editorial_items, writer_used, exclusions, email_subject = generate_editorial(
             clusters, sources, mode=writer_mode, model=model,
@@ -92,7 +103,9 @@ def build_newsletter(
         if writer_used == "openai":
             sections = {item.candidate_id: item.section for item in editorial_items}
             for cluster in clusters:
-                if cluster.key in sections:
+                if is_dated_event(cluster.representative):
+                    cluster.category = "Eventi"
+                elif cluster.key in sections:
                     cluster.category = sections[cluster.key]
             valid_ids = {item.candidate_id for item in editorial_items}
             clusters = [cluster for cluster in clusters if cluster.key in valid_ids]
