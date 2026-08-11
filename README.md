@@ -46,3 +46,9 @@ come artifact del run per 7 giorni. La campagna viene creata come bozza e non vi
 inviata automaticamente.
 
 Consultare `backend/README.md` per configurazione ed esecuzione.
+
+## Documentazione tecnica completa
+
+Consultare `SIRACUSADAILY_TECHNICAL.md` per l'architettura completa del motore,
+le fonti, il processing editoriale, la generazione, il quality assurance,
+le operation, il monitoring, gli analytics e l'infrastruttura.
