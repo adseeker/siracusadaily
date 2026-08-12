@@ -27,4 +27,10 @@ def evaluate_locality(article: Article, source: Source) -> tuple[float, tuple[st
     if source.source_id in {"SRC-0008", "SRC-0010", "SRC-0019"} and score == 0:
         score = 0.62
         reasons.append("fonte istituzionale territoriale")
+    # I contenuti raccolti a mano tramite l'intake sono già curati e verificati
+    # localmente: vengono trattati come fidati-locali senza dipendere dai toponimi
+    # nel titolo.
+    if source.source_id == "SRC-0100":
+        score = max(score, 0.92)
+        reasons.append("contenuto curato manualmente (intake)")
     return score, tuple(reasons)
