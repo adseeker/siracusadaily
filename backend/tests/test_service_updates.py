@@ -80,6 +80,19 @@ class ServiceUpdateTests(unittest.TestCase):
         apply_service_metadata(article)
         self.assertTrue(service_alert_is_active(article, date(2026, 8, 12)))
 
+    def test_ordinance_uses_work_dates_instead_of_protocol_date(self) -> None:
+        article = self.article(
+            "Italgas via Dione",
+            "Ordinanza dell'11/08/2026. ORDINA dal 24 al 26 agosto 2026 il "
+            "divieto di transito per lavori stradali in via Dione.",
+            day=11,
+        )
+        apply_service_metadata(article)
+        self.assertEqual(
+            article.metadata["service_start"], "2026-08-23T22:00:00+00:00",
+        )
+        self.assertFalse(service_alert_is_active(article, date(2026, 8, 12)))
+
     def test_diversification_prefers_different_service_types(self) -> None:
         water = self.article("Interruzione idrica", "Servizio idrico sospeso", article_id=1)
         water2 = self.article("Guasto alla rete idrica", "Interruzione del servizio idrico", article_id=2)

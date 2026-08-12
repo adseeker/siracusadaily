@@ -148,6 +148,53 @@ def _date_candidates(value: str, fallback_year: int) -> list[datetime]:
     return [item[1].astimezone(timezone.utc) for item in sorted(matches, key=lambda item: item[0])]
 
 
+def _operational_range(value: str) -> tuple[datetime, datetime] | None:
+    text = value.lower()
+    months = {
+        "gennaio": 1, "febbraio": 2, "marzo": 3, "aprile": 4, "maggio": 5,
+        "giugno": 6, "luglio": 7, "agosto": 8, "settembre": 9, "ottobre": 10,
+        "novembre": 11, "dicembre": 12,
+    }
+    same_month = re.search(
+        r"\bdal\s+(\d{1,2})\s+al\s+(\d{1,2})\s+"
+        r"(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|"
+        r"settembre|ottobre|novembre|dicembre)\s+(\d{4})\b",
+        text,
+    )
+    if same_month:
+        try:
+            start = datetime(
+                int(same_month.group(4)), months[same_month.group(3)],
+                int(same_month.group(1)), tzinfo=ROME,
+            )
+            end = datetime(
+                int(same_month.group(4)), months[same_month.group(3)],
+                int(same_month.group(2)), 23, 59, 59, tzinfo=ROME,
+            )
+            return start.astimezone(timezone.utc), end.astimezone(timezone.utc)
+        except ValueError:
+            pass
+    numeric = re.search(
+        r"\bdal\s+(\d{1,2})[/.](\d{1,2})[/.](\d{4})\s+al\s+"
+        r"(\d{1,2})[/.](\d{1,2})[/.](\d{4})\b",
+        text,
+    )
+    if numeric:
+        try:
+            start = datetime(
+                int(numeric.group(3)), int(numeric.group(2)), int(numeric.group(1)),
+                tzinfo=ROME,
+            )
+            end = datetime(
+                int(numeric.group(6)), int(numeric.group(5)), int(numeric.group(4)),
+                23, 59, 59, tzinfo=ROME,
+            )
+            return start.astimezone(timezone.utc), end.astimezone(timezone.utc)
+        except ValueError:
+            pass
+    return None
+
+
 def apply_service_metadata(article: Article) -> Article:
     """Mark only concrete, citizen-facing operational communications."""
     text = normalize_text(f"{article.title} {article.excerpt}")
@@ -176,12 +223,25 @@ def apply_service_metadata(article: Article) -> Article:
     )
 
     if SERVICE_START_KEY not in article.metadata:
-        dates = _date_candidates(f"{article.title} {article.excerpt}", article.published_at.astimezone(ROME).year)
-        if dates:
-            article.metadata[SERVICE_START_KEY] = dates[0].isoformat()
-            if len(dates) > 1 and dates[-1] >= dates[0]:
-                end_local = dates[-1].astimezone(ROME).replace(hour=23, minute=59, second=59)
-                article.metadata[SERVICE_END_KEY] = end_local.astimezone(timezone.utc).isoformat()
+        date_text = f"{article.title} {article.excerpt}"
+        operational_range = _operational_range(date_text)
+        if operational_range:
+            article.metadata[SERVICE_START_KEY] = operational_range[0].isoformat()
+            article.metadata[SERVICE_END_KEY] = operational_range[1].isoformat()
+        else:
+            # Negli atti ufficiali le date realmente operative compaiono dopo
+            # la formula ORDINA; le date iniziali sono protocollo e pubblicazione.
+            operative_text = re.split(r"\bORDINA\b", date_text, maxsplit=1, flags=re.I)[-1]
+            dates = _date_candidates(
+                operative_text, article.published_at.astimezone(ROME).year,
+            )
+            if dates:
+                article.metadata[SERVICE_START_KEY] = dates[0].isoformat()
+                if len(dates) > 1 and dates[-1] >= dates[0]:
+                    end_local = dates[-1].astimezone(ROME).replace(
+                        hour=23, minute=59, second=59,
+                    )
+                    article.metadata[SERVICE_END_KEY] = end_local.astimezone(timezone.utc).isoformat()
     return article
 
 
