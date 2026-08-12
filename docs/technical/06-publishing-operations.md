@@ -49,9 +49,15 @@ Il comando manuale `workflow_dispatch` in modalità `full` crea sempre una bozza
 
 Ogni run completo allega all'artifact GitHub `facebook_post.txt` e
 `facebook_sources.txt` e aggiorna la pagina Notion fissa
-`Facebook — copia e incolla`. La pagina espone il post e il primo commento in due
-blocchi separati; il contenuto del giorno precedente viene sostituito solo dopo
-che quello nuovo è stato inserito.
+`Facebook — copia e incolla`. Ogni edizione viene conservata in una toggle
+`Post notizie <giorno> <mese> <anno>`, con il giorno più recente in alto. Aprendo
+la toggle si trovano i due blocchi `Post Facebook` e `Primo commento`; le edizioni
+precedenti non vengono eliminate.
+
+Se lo stesso giorno viene pubblicato di nuovo, il motore inserisce prima la nuova
+toggle e rimuove soltanto quella precedente con la stessa data. Questa sequenza
+mantiene l'operazione idempotente e preserva lo storico anche in caso di errore
+parziale.
 
 La procedura operativa è deliberatamente manuale:
 

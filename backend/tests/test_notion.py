@@ -31,17 +31,26 @@ class Response:
 
 
 class NotionPublishTests(unittest.TestCase):
-    def test_recap_is_inserted_before_old_blocks_and_old_content_is_removed(self) -> None:
+    def test_recap_is_archived_first_and_only_same_day_toggle_is_replaced(self) -> None:
         responses = [
             Response({
                 "results": [
-                    {"id": "old-1", "type": "paragraph"},
-                    {"id": "child-1", "type": "child_page"},
+                    {
+                        "id": "same-day",
+                        "type": "toggle",
+                        "toggle": {"rich_text": [{"plain_text": "Post notizie 12 agosto 2026"}]},
+                    },
+                    {
+                        "id": "older",
+                        "type": "toggle",
+                        "toggle": {"rich_text": [{"plain_text": "Post notizie 11 agosto 2026"}]},
+                    },
+                    {"id": "intro", "type": "paragraph", "paragraph": {"rich_text": []}},
                 ],
                 "has_more": False,
             }),
-            Response({"results": []}),
-            Response({"id": "old-1"}),
+            Response({"results": [{"id": "new-toggle"}]}),
+            Response({"id": "same-day"}),
         ]
         with patch("siracusa_daily.notion.urlopen", side_effect=responses) as request:
             result = publish_facebook_recap(
@@ -57,10 +66,18 @@ class NotionPublishTests(unittest.TestCase):
         append_request = request.call_args_list[1].args[0]
         append_payload = json.loads(append_request.data.decode("utf-8"))
         self.assertEqual(append_payload["position"], {"type": "start"})
-        self.assertEqual(len(append_payload["children"]), 5)
-        self.assertIn("Titolo", append_payload["children"][2]["code"]["rich_text"][0]["text"]["content"])
-        self.assertIn("https://example.com", append_payload["children"][4]["code"]["rich_text"][0]["text"]["content"])
-        self.assertTrue(request.call_args_list[2].args[0].full_url.endswith("/blocks/old-1"))
+        self.assertEqual(len(append_payload["children"]), 1)
+        toggle = append_payload["children"][0]["toggle"]
+        self.assertEqual(
+            toggle["rich_text"][0]["text"]["content"],
+            "Post notizie 12 agosto 2026",
+        )
+        self.assertEqual(len(toggle["children"]), 4)
+        self.assertIn("Titolo", toggle["children"][1]["code"]["rich_text"][0]["text"]["content"])
+        self.assertIn("https://example.com", toggle["children"][3]["code"]["rich_text"][0]["text"]["content"])
+        self.assertTrue(request.call_args_list[2].args[0].full_url.endswith("/blocks/same-day"))
+        self.assertFalse(any("/blocks/older" in call.args[0].full_url for call in request.call_args_list))
+        self.assertFalse(any("/blocks/intro" in call.args[0].full_url for call in request.call_args_list))
 
     def test_long_post_is_split_into_safe_rich_text_chunks(self) -> None:
         with patch(
@@ -70,7 +87,7 @@ class NotionPublishTests(unittest.TestCase):
             publish_facebook_recap(PAGE_ID, "x" * 4001, "fonti", token="secret")
 
         payload = json.loads(request.call_args_list[1].args[0].data.decode("utf-8"))
-        chunks = payload["children"][2]["code"]["rich_text"]
+        chunks = payload["children"][0]["toggle"]["children"][1]["code"]["rich_text"]
         self.assertEqual([len(chunk["text"]["content"]) for chunk in chunks], [1800, 1800, 401])
 
     def test_invalid_input_is_rejected_before_calling_notion(self) -> None:

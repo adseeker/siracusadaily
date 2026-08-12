@@ -17,6 +17,10 @@ API_BASE = "https://api.notion.com/v1"
 API_VERSION = "2026-03-11"
 ROME = ZoneInfo("Europe/Rome")
 PAGE_ID_PATTERN = re.compile(r"^[0-9a-fA-F-]{32,36}$")
+MONTHS = (
+    "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+    "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre",
+)
 
 
 class NotionPublishError(RuntimeError):
@@ -99,41 +103,63 @@ def _text_block(block_type: str, content: str) -> dict[str, Any]:
     }
 
 
+def _archive_title(updated_at: datetime) -> str:
+    local = updated_at.astimezone(ROME)
+    return f"Post notizie {local.day} {MONTHS[local.month - 1]} {local.year}"
+
+
 def _recap_blocks(post: str, sources: str, updated_at: datetime) -> list[dict[str, Any]]:
-    timestamp = updated_at.astimezone(ROME).strftime("%d/%m/%Y alle %H:%M")
     return [
         {
             "object": "block",
-            "type": "callout",
-            "callout": {
-                "icon": {"type": "emoji", "emoji": "✅"},
-                "color": "green_background",
-                "rich_text": _rich_text(
-                    f"Recap aggiornato il {timestamp}. Copia il post e poi il primo commento."
-                ),
-            },
-        },
-        _text_block("heading_2", "Post Facebook"),
-        {
-            "object": "block",
-            "type": "code",
-            "code": {
-                "language": "plain text",
-                "caption": [],
-                "rich_text": _rich_text(post.strip()),
-            },
-        },
-        _text_block("heading_2", "Primo commento"),
-        {
-            "object": "block",
-            "type": "code",
-            "code": {
-                "language": "plain text",
-                "caption": [],
-                "rich_text": _rich_text(sources.strip()),
+            "type": "toggle",
+            "toggle": {
+                "color": "default",
+                "rich_text": _rich_text(_archive_title(updated_at)),
+                "children": [
+                    _text_block("heading_2", "Post Facebook"),
+                    {
+                        "object": "block",
+                        "type": "code",
+                        "code": {
+                            "language": "plain text",
+                            "caption": [],
+                            "rich_text": _rich_text(post.strip()),
+                        },
+                    },
+                    _text_block("heading_2", "Primo commento"),
+                    {
+                        "object": "block",
+                        "type": "code",
+                        "code": {
+                            "language": "plain text",
+                            "caption": [],
+                            "rich_text": _rich_text(sources.strip()),
+                        },
+                    },
+                ],
             },
         },
     ]
+
+
+def _block_text(block: dict[str, Any]) -> str:
+    block_type = block.get("type")
+    body = block.get(block_type, {}) if isinstance(block_type, str) else {}
+    rich_text = body.get("rich_text", []) if isinstance(body, dict) else []
+    parts: list[str] = []
+    for item in rich_text if isinstance(rich_text, list) else []:
+        if not isinstance(item, dict):
+            continue
+        plain = item.get("plain_text")
+        if isinstance(plain, str):
+            parts.append(plain)
+            continue
+        text = item.get("text", {})
+        content = text.get("content") if isinstance(text, dict) else None
+        if isinstance(content, str):
+            parts.append(content)
+    return "".join(parts)
 
 
 def _children(page_id: str, *, token: str | None = None) -> list[dict[str, Any]]:
@@ -168,19 +194,22 @@ def publish_facebook_recap(
         raise NotionPublishError("post e fonti Facebook devono essere valorizzati")
 
     existing = _children(page_id, token=token)
+    current_time = updated_at or datetime.now(ROME)
+    archive_title = _archive_title(current_time)
     _request(
         "PATCH",
         f"/blocks/{page_id}/children",
         token=token,
         payload={
             "position": {"type": "start"},
-            "children": _recap_blocks(post, sources, updated_at or datetime.now(ROME)),
+            "children": _recap_blocks(post, sources, current_time),
         },
     )
 
     replaceable = [
         row for row in existing
-        if row.get("type") not in {"child_page", "child_database"}
+        if row.get("type") == "toggle"
+        and _block_text(row) == archive_title
         and isinstance(row.get("id"), str)
     ]
     for row in replaceable:
