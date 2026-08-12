@@ -128,7 +128,7 @@ CONTRATTO EDITORIALE
 6. La summary non deve ripetere o parafrasare la headline. Deve svilupparla con informazioni concrete presenti nelle evidenze, come contesto, conseguenze, soggetti coinvolti o dettagli operativi, e terminare con punteggiatura conclusiva.
 7. Se lo spazio non basta, elimina dettagli secondari e riscrivi l'intero testo. Non usare puntini di sospensione.
 8. Niente clickbait, promozione, giudizi non attribuiti, URL o inviti ad approfondire.
-9. Per eventi e opportunità conserva, quando disponibili, natura dell'iniziativa, luogo e data o scadenza.
+9. Per eventi e opportunità conserva, quando disponibili, natura dell'iniziativa, luogo e data o scadenza. Per gli avvisi operativi conserva sempre servizio interessato, zona o strada coinvolta e periodo di validità quando presenti nelle evidenze.
 10. Se le evidenze non bastano per una micro-notizia informativa e completa, imposta publishable=false e spiega brevemente il motivo in rejection_reason. Non produrre testo generico per riempire lo spazio.
 11. Non usare mai l'em dash (—). Usa virgola, due punti, parentesi o un trattino breve.
 12. Per ogni candidato pubblicabile scrivi anche subject_topic: una formulazione autonoma e conclusiva del fatto principale, utilizzabile come oggetto di riserva. Massimo 80 caratteri, niente puntini di sospensione o troncamenti.

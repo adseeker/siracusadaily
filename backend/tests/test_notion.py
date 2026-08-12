@@ -10,6 +10,7 @@ from siracusa_daily.notion import (
     NotionPublishError,
     check_notion_access,
     publish_facebook_recap,
+    publish_service_updates,
 )
 
 
@@ -89,6 +90,36 @@ class NotionPublishTests(unittest.TestCase):
         payload = json.loads(request.call_args_list[1].args[0].data.decode("utf-8"))
         chunks = payload["children"][0]["toggle"]["children"][1]["code"]["rich_text"]
         self.assertEqual([len(chunk["text"]["content"]) for chunk in chunks], [1800, 1800, 401])
+
+    def test_service_updates_use_numeric_date_and_replace_only_their_toggle(self) -> None:
+        responses = [
+            Response({
+                "results": [
+                    {
+                        "id": "same-services", "type": "toggle",
+                        "toggle": {"rich_text": [{"plain_text": "Aggiornamenti utili 12/08/2026"}]},
+                    },
+                    {
+                        "id": "daily-news", "type": "toggle",
+                        "toggle": {"rich_text": [{"plain_text": "Post notizie 12 agosto 2026"}]},
+                    },
+                ],
+                "has_more": False,
+            }),
+            Response({"results": [{"id": "new-toggle"}]}),
+            Response({"id": "same-services"}),
+        ]
+        with patch("siracusa_daily.notion.urlopen", side_effect=responses) as request:
+            result = publish_service_updates(
+                PAGE_ID, "Post operativo", "Fonti operative", token="secret",
+                updated_at=datetime(2026, 8, 12, 9, 0, tzinfo=ZoneInfo("Europe/Rome")),
+            )
+        self.assertEqual(result.replaced_blocks, 1)
+        payload = json.loads(request.call_args_list[1].args[0].data.decode("utf-8"))
+        title = payload["children"][0]["toggle"]["rich_text"][0]["text"]["content"]
+        self.assertEqual(title, "Aggiornamenti utili 12/08/2026")
+        self.assertTrue(request.call_args_list[2].args[0].full_url.endswith("/blocks/same-services"))
+        self.assertFalse(any("/blocks/daily-news" in call.args[0].full_url for call in request.call_args_list))
 
     def test_invalid_input_is_rejected_before_calling_notion(self) -> None:
         with patch("siracusa_daily.notion.urlopen") as request:

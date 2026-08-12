@@ -19,6 +19,8 @@ Il motore scrive nel log:
 - numero di contenuti e percorsi dei file Facebook;
 - warning non bloccanti del renderer Facebook;
 - esito dell'aggiornamento della pagina operativa Notion;
+- numero e percorsi degli aggiornamenti utili, oppure motivazione esplicita
+  dell'assenza del blocco operativo;
 - ID del run editoriale;
 - numero di contenuti finali;
 - writer e percorso output;

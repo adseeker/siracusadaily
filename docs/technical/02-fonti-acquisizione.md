@@ -23,6 +23,18 @@ Ogni fonte include almeno identificativo, nome, categoria, content bucket, URL, 
 
 ## Fonti attive
 
+### Comunicazioni di servizio
+
+Il flusso operativo integra Aretusacque per il servizio idrico, il Dipartimento
+regionale della Protezione civile per gli avvisi ufficiali e il registro delle
+Ordinanze dirigenziali del Comune per viabilità, lavori stradali e reti. Le
+testate locali e gli avvisi comunali già presenti restano fonti integrative.
+
+Un bollettino regionale generico non diventa automaticamente un aggiornamento
+locale: serve un riferimento esplicito a Siracusa nel titolo o un provvedimento
+locale collegato. E-distribuzione non viene interrogata perché non offre un
+elenco pubblico territoriale affidabile senza dati del cliente.
+
 ### Testate locali
 
 - SiracusaNews;

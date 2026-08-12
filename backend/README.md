@@ -44,6 +44,13 @@ testi in blocchi separati. Per abilitarla, condividere la pagina con una
 connessione interna Notion dotata di lettura e aggiornamento dei contenuti, quindi
 salvare il relativo token come secret GitHub `NOTION_TOKEN`.
 
+Lo stesso run produce, soltanto quando esistono avvisi operativi validi, i file
+`facebook_service_updates_post.txt` e `facebook_service_updates_sources.txt`.
+In Notion vengono archiviati nella toggle `Aggiornamenti utili dd/mm/aaaa`.
+Il flusso è limitato a cinque comunicazioni concrete su acqua, energia,
+viabilità, trasporti, rifiuti, meteo/protezione civile e chiusure pubbliche.
+Non viene creata alcuna toggle vuota.
+
 Il link di iscrizione può essere personalizzato con
 `SIRACUSA_FACEBOOK_SIGNUP_URL`; il valore predefinito include i parametri UTM per
 il recap organico.

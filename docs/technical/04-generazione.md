@@ -147,4 +147,12 @@ ultimi aggiornamenti. Produce:
 Il formato implementato corrisponde alla variante A dell'esperimento editoriale.
 La variante con un'unica pagina web quotidiana non è inclusa in questa fase.
 
+## Aggiornamenti utili
+
+Il post operativo riusa la stessa risposta del writer della newsletter e non
+effettua una seconda chiamata OpenAI. Contiene al massimo cinque avvisi e genera
+due file separati: testo del post senza URL e primo commento con fonti e link.
+Il writer preserva servizio, zona o strada e periodo di validità quando presenti.
+Se non ci sono avvisi validi, non viene prodotto alcun file operativo.
+
 [← Precedente: Processing](03-processing.md) · [Successivo: Quality Assurance →](05-quality-assurance.md)

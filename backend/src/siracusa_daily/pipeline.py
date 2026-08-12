@@ -8,6 +8,7 @@ from pathlib import Path
 from .config import load_endpoints, load_sources
 from .database import (
     active_opportunity_articles,
+    active_service_alert_articles,
     connect,
     last_source_positions,
     previously_drafted_article_ids,
@@ -45,6 +46,18 @@ from .facebook import (
     save_facebook_outputs,
 )
 from .images import publish_newsletter_images
+from .service_updates import (
+    apply_service_metadata,
+    diversify_service_clusters,
+    is_service_alert,
+    service_alert_is_due,
+)
+from .service_facebook import (
+    SERVICE_ITEM_LIMIT,
+    ServiceOutputError,
+    render_service_outputs,
+    save_service_outputs,
+)
 
 
 @dataclass
@@ -87,6 +100,7 @@ def ingest(
             for article in articles:
                 apply_event_quality(article)
                 apply_opportunity_quality(article)
+                apply_service_metadata(article)
             mark_multilingual_duplicates(articles)
             for article in articles:
                 article.local_score, article.local_reasons = evaluate_locality(article, sources[article.source_id])
@@ -113,20 +127,40 @@ def build_newsletter(
     sources = load_sources(source_map)
     connection = connect(database)
     try:
+        previous_ids = previously_drafted_article_ids(
+            connection, edition_date.isoformat(),
+        )
         recent = recent_articles(connection, datetime.now(timezone.utc) - timedelta(hours=lookback_hours))
         news_articles = [
             article for article in recent
-            if not is_dated_event(article) and not is_opportunity(article)
+            if not is_dated_event(article)
+            and not is_opportunity(article)
+            and not is_service_alert(article)
         ]
         news_clusters = select_stories(
             news_articles,
             sources,
             last_source_positions(connection),
             limit=limit,
-            excluded_article_ids=previously_drafted_article_ids(
-                connection, edition_date.isoformat(),
-            ),
+            excluded_article_ids=previous_ids,
         )
+        service_articles = [
+            article for article in active_service_alert_articles(connection, edition_date)
+            if service_alert_is_due(article, edition_date, previous_ids)
+        ]
+        service_clusters = select_stories(
+            service_articles, sources, last_source_positions(connection),
+            limit=len(service_articles), max_per_source=max(1, len(service_articles)),
+            cluster_max_age_hours=None,
+        )
+        service_clusters = diversify_service_clusters(
+            service_clusters, edition_date, SERVICE_ITEM_LIMIT,
+        )
+        for cluster in service_clusters:
+            cluster.category = "Servizi e utilità"
+        # Gli avvisi operativi hanno precedenza entro il limite complessivo,
+        # senza aumentare la dimensione o il costo editoriale della newsletter.
+        news_clusters = (service_clusters + news_clusters)[:limit]
         event_articles = upcoming_event_articles(connection, edition_date, days=7)
         event_clusters = select_stories(
             event_articles, sources, last_source_positions(connection),
@@ -153,6 +187,7 @@ def build_newsletter(
             + opportunity_clusters
         )
         selected_clusters = list(clusters)
+        service_cluster_keys = {cluster.key for cluster in service_clusters}
         editorial_items, writer_used, exclusions, email_subject = generate_editorial(
             clusters, sources, mode=writer_mode, model=model,
         )
@@ -167,6 +202,9 @@ def build_newsletter(
                     cluster.category = sections[cluster.key]
             valid_ids = {item.candidate_id for item in editorial_items}
             clusters = [cluster for cluster in clusters if cluster.key in valid_ids]
+            service_clusters = [
+                cluster for cluster in service_clusters if cluster.key in valid_ids
+            ]
         if output.suffix.lower() == ".html":
             image_report = publish_newsletter_images(clusters, edition_date)
             if image_report.attempted:
@@ -215,6 +253,35 @@ def build_newsletter(
                 )
             except (FacebookOutputError, OSError) as exc:
                 print(f"WARN FACEBOOK {exc}")
+            service_paths = (
+                facebook_output_dir / "facebook_service_updates_post.txt",
+                facebook_output_dir / "facebook_service_updates_sources.txt",
+            )
+            try:
+                if writer_used != "openai":
+                    raise ServiceOutputError(
+                        "gli aggiornamenti utili richiedono contenuti validati dal writer OpenAI"
+                    )
+                service_outputs = render_service_outputs(
+                    [cluster for cluster in clusters if cluster.key in service_cluster_keys],
+                    sources, editorial_items, limit=SERVICE_ITEM_LIMIT,
+                    signup_url=os.getenv(
+                        "SIRACUSA_FACEBOOK_SIGNUP_URL", DEFAULT_SIGNUP_URL,
+                    ),
+                )
+                service_post, service_sources = save_service_outputs(
+                    facebook_output_dir, service_outputs,
+                )
+                print(
+                    f"Aggiornamenti utili: {service_outputs.item_count} contenuti -> "
+                    f"{service_post}; {service_sources}"
+                )
+            except ServiceOutputError as exc:
+                for path in service_paths:
+                    path.unlink(missing_ok=True)
+                print(f"Aggiornamenti utili: {exc}; nessun blocco creato")
+            except OSError as exc:
+                print(f"WARN AGGIORNAMENTI UTILI {exc}")
         items = [(cluster.representative, cluster.key, cluster.score) for cluster in clusters]
         excluded_items = [
             (cluster.representative, cluster.key, exclusions[cluster.key])

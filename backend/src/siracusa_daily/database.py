@@ -9,6 +9,7 @@ from .events import event_is_in_window, event_sort_key
 from .event_quality import event_is_publishable
 from .models import Article
 from .opportunities import opportunity_is_active, opportunity_sort_key
+from .service_updates import service_alert_is_active
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -175,6 +176,22 @@ def active_opportunity_articles(
         opportunities,
         key=lambda article: opportunity_sort_key(article, edition_date),
     )
+
+
+def active_service_alert_articles(
+    connection: sqlite3.Connection, edition_date: date,
+    minimum_local_score: float = 0.55,
+) -> list[Article]:
+    rows = connection.execute(
+        """SELECT * FROM articles
+           WHERE local_score >= ?
+             AND json_extract(metadata, '$.service_alert') = 'true'""",
+        (minimum_local_score,),
+    ).fetchall()
+    return [
+        article for article in _articles_from_rows(rows)
+        if service_alert_is_active(article, edition_date)
+    ]
 
 
 def last_source_positions(connection: sqlite3.Connection) -> dict[str, int]:

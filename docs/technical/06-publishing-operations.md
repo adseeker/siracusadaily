@@ -80,6 +80,13 @@ La modalità manuale `notion-test` verifica lettura, scrittura e rimozione di un
 blocco temporaneo senza chiamare OpenAI, generare newsletter o creare campagne
 Brevo.
 
+Quando esistono comunicazioni operative valide, il workflow pubblica sulla
+stessa pagina una seconda toggle `Aggiornamenti utili dd/mm/aaaa`, contenente
+`Post Facebook` e `Primo commento`. La toggle del giorno viene sostituita senza
+toccare `Post notizie` né lo storico. Se il gate non trova elementi, non viene
+creata una toggle vuota. Il comando dedicato è
+`siracusa-daily notion-publish-services`.
+
 ## Iscrizione utenti
 
 La landing page incorpora un form Brevo diretto con:

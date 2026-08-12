@@ -2,18 +2,19 @@
 
 [← Indice della documentazione tecnica](../../SIRACUSADAILY_TECHNICAL.md)
 
-Ultimo aggiornamento: 11 agosto 2026<br>
+Ultimo aggiornamento: 12 agosto 2026<br>
 Stato: sistema operativo in produzione
 
 
 ## Test automatici
 
-Il repository contiene attualmente 103 test automatici eseguiti prima di ogni run:
+Il repository contiene attualmente 111 test automatici eseguiti prima di ogni run:
 
 - 84 test di pipeline;
 - 10 test dedicati alle immagini;
 - 5 test dedicati al recap Facebook;
-- 4 test dedicati alla pubblicazione operativa su Notion.
+- 5 test dedicati alla pubblicazione operativa su Notion;
+- 7 test dedicati agli aggiornamenti utili.
 
 La suite copre, tra le altre cose:
 
@@ -36,6 +37,8 @@ La suite copre, tra le altre cose:
 - estrazione, compressione e upload delle thumbnail;
 - selezione, attribuzione, separazione dei link e salvataggio del recap Facebook;
 - aggiornamento sicuro della pagina Notion e suddivisione dei testi lunghi.
+- esclusione degli avvisi amministrativi, validità degli alert, ripetizione dei
+  soli casi critici e isolamento della toggle operativa.
 
 Se un test fallisce, GitHub Actions non avvia il motore editoriale.
 
@@ -65,6 +68,7 @@ I run schedulati programmano l'invio soltanto dopo questi controlli. I run manua
 | OpenAI non disponibile dopo i retry | Run fallito, nessuna campagna |
 | Immagine assente, bloccata o non valida | Thumbnail omessa, campagna invariata |
 | Output Facebook non disponibile | Warning, campagna email invariata |
+| Nessun aggiornamento operativo valido | Nessuna toggle vuota; email invariata |
 | Brevo non raggiungibile nel preflight | Run interrotto prima della produzione |
 | Campagna già esistente | Run ignorato senza costi OpenAI |
 | Meno di 6 contenuti | Campagna bloccata |

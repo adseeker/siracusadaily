@@ -40,6 +40,8 @@ Il backend è un package Python chiamato `siracusa-daily`, compatibile con Pytho
 | `images.py` | Estrazione, ottimizzazione e pubblicazione delle thumbnail |
 | `writer.py` | Rendering deterministico Markdown o HTML |
 | `facebook.py` | Recap testuale e blocco fonti per la pubblicazione manuale su Facebook |
+| `service_updates.py` | Gate, validità, priorità e rotazione degli avvisi operativi |
+| `service_facebook.py` | Post e primo commento dedicati agli aggiornamenti utili |
 | `notion.py` | Aggiornamento della pagina operativa di copia e incolla |
 | `brevo.py` | Controllo campagne, risoluzione lista, creazione e programmazione Brevo |
 | `pipeline.py` | Orchestrazione di ingestione e costruzione dell'edizione |

@@ -108,14 +108,19 @@ def _archive_title(updated_at: datetime) -> str:
     return f"Post notizie {local.day} {MONTHS[local.month - 1]} {local.year}"
 
 
-def _recap_blocks(post: str, sources: str, updated_at: datetime) -> list[dict[str, Any]]:
+def _service_archive_title(updated_at: datetime) -> str:
+    local = updated_at.astimezone(ROME)
+    return f"Aggiornamenti utili {local:%d/%m/%Y}"
+
+
+def _recap_blocks(post: str, sources: str, title: str) -> list[dict[str, Any]]:
     return [
         {
             "object": "block",
             "type": "toggle",
             "toggle": {
                 "color": "default",
-                "rich_text": _rich_text(_archive_title(updated_at)),
+                "rich_text": _rich_text(title),
                 "children": [
                     _text_block("heading_2", "Post Facebook"),
                     {
@@ -183,9 +188,9 @@ def _children(page_id: str, *, token: str | None = None) -> list[dict[str, Any]]
             raise NotionPublishError("paginazione Notion non valida")
 
 
-def publish_facebook_recap(
-    page_id: str, post: str, sources: str, *, token: str | None = None,
-    updated_at: datetime | None = None,
+def _publish_toggle(
+    page_id: str, post: str, sources: str, archive_title: str,
+    *, token: str | None = None,
 ) -> NotionPublishResult:
     page_id = page_id.strip()
     if not PAGE_ID_PATTERN.fullmatch(page_id):
@@ -194,15 +199,13 @@ def publish_facebook_recap(
         raise NotionPublishError("post e fonti Facebook devono essere valorizzati")
 
     existing = _children(page_id, token=token)
-    current_time = updated_at or datetime.now(ROME)
-    archive_title = _archive_title(current_time)
     _request(
         "PATCH",
         f"/blocks/{page_id}/children",
         token=token,
         payload={
             "position": {"type": "start"},
-            "children": _recap_blocks(post, sources, current_time),
+            "children": _recap_blocks(post, sources, archive_title),
         },
     )
 
@@ -215,6 +218,26 @@ def publish_facebook_recap(
     for row in replaceable:
         _request("DELETE", f"/blocks/{row['id']}", token=token)
     return NotionPublishResult(page_id=page_id, replaced_blocks=len(replaceable))
+
+
+def publish_facebook_recap(
+    page_id: str, post: str, sources: str, *, token: str | None = None,
+    updated_at: datetime | None = None,
+) -> NotionPublishResult:
+    current_time = updated_at or datetime.now(ROME)
+    return _publish_toggle(
+        page_id, post, sources, _archive_title(current_time), token=token,
+    )
+
+
+def publish_service_updates(
+    page_id: str, post: str, sources: str, *, token: str | None = None,
+    updated_at: datetime | None = None,
+) -> NotionPublishResult:
+    current_time = updated_at or datetime.now(ROME)
+    return _publish_toggle(
+        page_id, post, sources, _service_archive_title(current_time), token=token,
+    )
 
 
 def check_notion_access(

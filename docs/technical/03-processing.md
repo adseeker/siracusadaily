@@ -134,6 +134,18 @@ L'ordine di presentazione è:
 6. I prossimi eventi;
 7. Lavoro e opportunità.
 
+## Gate dedicato agli aggiornamenti utili
+
+La categoria editoriale `Servizi e utilità` non è sufficiente. Il gate richiede
+un servizio riconoscibile, un impatto concreto, località compatibile e stato
+ancora attivo o inizio entro le 72 ore successive. Bilanci, concorsi,
+manifestazioni di interesse, avvisi ai creditori, mozioni, eventi e atti non
+operativi vengono esclusi prima del writer.
+
+Gli avvisi critici possono essere riproposti mentre restano attivi; gli altri
+non vengono ripetuti dopo la prima campagna pubblicata. Il massimo è cinque e la
+selezione favorisce servizi diversi prima di ripetere lo stesso tipo.
+
 La classificazione iniziale usa content bucket e parole chiave. Il writer può correggere semanticamente la sezione delle notizie ordinarie. Gli eventi datati e le opportunità strutturate vengono invece forzati nelle rispettive sezioni dopo la risposta del modello.
 
 [← Precedente: Fonti e acquisizione](02-fonti-acquisizione.md) · [Successivo: Generazione →](04-generazione.md)

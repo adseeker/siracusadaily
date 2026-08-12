@@ -123,6 +123,10 @@ editoriale della newsletter, viene renderizzato localmente e pubblicato a mano.
 Anche l'aggiornamento della pagina Notion riusa gli stessi file e non richiede
 ulteriori servizi a pagamento.
 
+Anche `Aggiornamenti utili` riusa retrieval, database, writer e token Notion già
+configurati. Non introduce API a pagamento né una seconda chiamata OpenAI;
+aggiunge soltanto richieste HTTP alle fonti pubbliche ufficiali.
+
 ## Backup e retention
 
 - Database operativo: storico Git del branch `automation-state`;

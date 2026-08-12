@@ -126,6 +126,15 @@ jobs:
             --post runtime/facebook_post.txt \
             --sources runtime/facebook_sources.txt
 
+          if [[ -f runtime/facebook_service_updates_post.txt && -f runtime/facebook_service_updates_sources.txt ]]; then
+            siracusa-daily notion-publish-services \
+              --page-id 3b9deac1-b022-8196-8a55-d77a97e81cf9 \
+              --post runtime/facebook_service_updates_post.txt \
+              --sources runtime/facebook_service_updates_sources.txt
+          else
+            echo "Nessun aggiornamento utile operativo: nessun toggle Notion creato."
+          fi
+
       - name: Consolida il database
         if: always() && (github.event_name == 'schedule' || inputs.mode == 'full')
         run: |
@@ -162,6 +171,8 @@ jobs:
             runtime/newsletter.html
             runtime/facebook_post.txt
             runtime/facebook_sources.txt
+            runtime/facebook_service_updates_post.txt
+            runtime/facebook_service_updates_sources.txt
             runtime/run.log
           if-no-files-found: warn
           retention-days: 7

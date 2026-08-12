@@ -25,7 +25,12 @@ from .database import (
 from .pipeline import build_newsletter, ingest
 from .editorial import DEFAULT_MODEL, EditorialError
 from .mailer import MailerError, send_html
-from .notion import NotionPublishError, check_notion_access, publish_facebook_recap
+from .notion import (
+    NotionPublishError,
+    check_notion_access,
+    publish_facebook_recap,
+    publish_service_updates,
+)
 
 PROJECT = Path(__file__).resolve().parents[2]
 
@@ -51,6 +56,10 @@ def parser() -> argparse.ArgumentParser:
     notion.add_argument("--page-id", required=True)
     notion.add_argument("--post", type=Path, required=True)
     notion.add_argument("--sources", type=Path, required=True)
+    notion_services = commands.add_parser("notion-publish-services")
+    notion_services.add_argument("--page-id", required=True)
+    notion_services.add_argument("--post", type=Path, required=True)
+    notion_services.add_argument("--sources", type=Path, required=True)
     notion_check = commands.add_parser("notion-check")
     notion_check.add_argument("--page-id", required=True)
     preflight = commands.add_parser("preflight")
@@ -125,6 +134,20 @@ def main() -> None:
             raise SystemExit(f"Recap Notion non pubblicato: {exc}") from exc
         print(
             f"Recap Notion aggiornato: pagina {result.page_id}; "
+            f"{result.replaced_blocks} blocchi precedenti sostituiti."
+        )
+        return
+    if args.command == "notion-publish-services":
+        try:
+            result = publish_service_updates(
+                args.page_id,
+                args.post.read_text(encoding="utf-8"),
+                args.sources.read_text(encoding="utf-8"),
+            )
+        except (NotionPublishError, OSError) as exc:
+            raise SystemExit(f"Aggiornamenti utili Notion non pubblicati: {exc}") from exc
+        print(
+            f"Aggiornamenti utili Notion aggiornati: pagina {result.page_id}; "
             f"{result.replaced_blocks} blocchi precedenti sostituiti."
         )
         return

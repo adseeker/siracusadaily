@@ -24,7 +24,7 @@ def evaluate_locality(article: Article, source: Source) -> tuple[float, tuple[st
     if "provincia di siracusa" in text or "libero consorzio di siracusa" in text:
         score = max(score, 0.9)
         reasons.append("riferimento provinciale")
-    if source.source_id in {"SRC-0008", "SRC-0010"} and score == 0:
+    if source.source_id in {"SRC-0008", "SRC-0010", "SRC-0019"} and score == 0:
         score = 0.62
         reasons.append("fonte istituzionale territoriale")
     return score, tuple(reasons)

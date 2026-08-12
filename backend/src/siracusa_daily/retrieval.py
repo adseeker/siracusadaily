@@ -970,7 +970,7 @@ def _pdf_text(payload: bytes) -> str:
         from pypdf import PdfReader
         return "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(payload)).pages)
     except Exception as exc:
-        raise RetrievalError(f"Impossibile leggere l'avviso PDF del CPI: {exc}") from exc
+        raise RetrievalError(f"Impossibile leggere il documento PDF: {exc}") from exc
 
 
 def _cpi_articles(document: str, endpoint: Endpoint, limit: int, timeout: float) -> list[Article]:
@@ -1045,11 +1045,186 @@ def _cpi_articles(document: str, endpoint: Endpoint, limit: int, timeout: float)
     return articles
 
 
+def _aretusacque_articles(endpoint: Endpoint, limit: int, timeout: float) -> list[Article]:
+    query = urlencode({"rootPath": "/content/aretus/it/news/avvisi"})
+    data_url = urljoin(
+        endpoint.url,
+        "/news/_jcr_content/root/avvisi_news_copy.jsonsearchmedia.json",
+    ) + f"?{query}"
+    try:
+        payload = json.loads(_download(
+            data_url, timeout=timeout, accept="application/json;q=1.0,*/*;q=0.5",
+        ).decode("utf-8", errors="replace"))
+    except json.JSONDecodeError as exc:
+        raise RetrievalError(f"{data_url}: risposta JSON non valida") from exc
+    rows = payload.get("results", []) if isinstance(payload, dict) else []
+    if not isinstance(rows, list):
+        return []
+
+    candidates: list[tuple[str, str, datetime]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        title = _html_text(str(row.get("title") or ""))
+        url = canonical_url(urljoin(endpoint.url, str(row.get("link") or "")))
+        published = _parse_optional_local_date(str(row.get("mediaDate") or ""))
+        if title and url.startswith("http") and published is not None:
+            candidates.append((title, url, published))
+    candidates.sort(key=lambda item: item[2], reverse=True)
+
+    def detail(candidate: tuple[str, str, datetime]) -> Article:
+        title, url, published = candidate
+        excerpt = ""
+        try:
+            document = _download(
+                url, timeout=min(timeout, 12.0),
+                accept="text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
+            ).decode("utf-8", errors="replace")
+            block = re.search(
+                r"<div\b[^>]*class=[\"'][^\"']*rich_text[^\"']*[\"'][^>]*>(.*?)</div>",
+                document, flags=re.I | re.S,
+            )
+            excerpt = _html_text(block.group(1) if block else document)[:5000]
+        except RetrievalError:
+            pass
+        return Article(
+            source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id,
+            title=title, url=url, published_at=published, excerpt=excerpt,
+            author="Aretusacque", content_buckets=endpoint.content_buckets,
+            metadata={"service_source": "primary"},
+        )
+
+    selected = candidates[:limit]
+    if not selected:
+        return []
+    with ThreadPoolExecutor(max_workers=min(6, len(selected))) as executor:
+        return list(executor.map(detail, selected))
+
+
+def _drpc_articles(document: str, endpoint: Endpoint, limit: int, timeout: float) -> list[Article]:
+    candidates: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for match in re.finditer(
+        r"<a\b[^>]*href=[\"']([^\"']+\.pdf(?:\?[^\"']*)?)[\"'][^>]*>(.*?)</a>",
+        document, flags=re.I | re.S,
+    ):
+        title = _html_text(match.group(2))
+        url = canonical_url(urljoin(endpoint.url, html.unescape(match.group(1))))
+        if not title or url in seen:
+            continue
+        lowered = title.lower()
+        if not any(term in lowered for term in ("rischio", "allerta", "avviso", "bollettino")):
+            continue
+        seen.add(url)
+        candidates.append((title, url))
+
+    def detail(candidate: tuple[str, str]) -> Article | None:
+        title, url = candidate
+        try:
+            text = _pdf_text(_download(
+                url, timeout=min(timeout, 15.0), accept="application/pdf,*/*;q=0.5",
+            ))
+        except RetrievalError:
+            return None
+        published = _parse_optional_local_date(title) or datetime.now(timezone.utc)
+        return Article(
+            source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id,
+            title=title, url=url, published_at=published, excerpt=_html_text(text)[:6000],
+            author="Dipartimento regionale della Protezione civile",
+            content_buckets=endpoint.content_buckets,
+            metadata={"service_source": "primary"},
+        )
+
+    selected = candidates[:min(limit, 4)]
+    if not selected:
+        return []
+    with ThreadPoolExecutor(max_workers=min(4, len(selected))) as executor:
+        return [article for article in executor.map(detail, selected) if article is not None]
+
+
+ORDINANCE_POSITIVE_TERMS = (
+    "viabil", "circolazione", "traffico", "transito", "sosta", "strada",
+    "chiusura", "interdizione", "lavori", "manto stradale", "ztl", "odcs",
+    "enel", "e-distribuzione", "italgas", "rete idrica", "acquedotto",
+)
+ORDINANCE_EXCLUSION_TERMS = (
+    "inumazione", "tumulazione", "esumazione", "estumulazione", "stallo h",
+    "concessione suolo", "commercio su area pubblica", "pubblicita",
+)
+
+
+def _ordinance_articles(document: str, endpoint: Endpoint, limit: int, timeout: float) -> list[Article]:
+    table = re.search(
+        r"<table\b[^>]*id=[\"']table_delibere[\"'][^>]*>(.*?)</table>",
+        document, flags=re.I | re.S,
+    )
+    if not table:
+        return []
+    candidates: list[tuple[str, str, datetime]] = []
+    for row in re.findall(r"<tr\b[^>]*>(.*?)</tr>", table.group(1), flags=re.I | re.S):
+        cells = re.findall(r"<td\b[^>]*>(.*?)</td>", row, flags=re.I | re.S)
+        link = re.search(r"<a\b[^>]*href=[\"']([^\"']+)[\"']", row, flags=re.I)
+        if not cells or not link:
+            continue
+        values = [_html_text(cell) for cell in cells]
+        description = max(values, key=len, default="")
+        normalized = description.lower()
+        if any(term in normalized for term in ORDINANCE_EXCLUSION_TERMS):
+            continue
+        if not any(term in normalized for term in ORDINANCE_POSITIVE_TERMS):
+            continue
+        published = next(
+            (_parse_optional_local_date(value) for value in reversed(values)
+             if _parse_optional_local_date(value) is not None),
+            datetime.now(timezone.utc),
+        )
+        candidates.append((description, urljoin(endpoint.url, html.unescape(link.group(1))), published))
+
+    def detail(candidate: tuple[str, str, datetime]) -> Article:
+        title, detail_url, published = candidate
+        article_url = canonical_url(detail_url)
+        excerpt = title
+        try:
+            detail_page = _download(
+                detail_url, timeout=min(timeout, 12.0),
+                accept="text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
+            ).decode("utf-8", errors="replace")
+            document_link = re.search(
+                r"<a\b[^>]*href=[\"']([^\"']*(?:doc\.php|\.pdf)[^\"']*)[\"'][^>]*>",
+                detail_page, flags=re.I,
+            )
+            if document_link:
+                article_url = canonical_url(urljoin(detail_url, html.unescape(document_link.group(1))))
+                excerpt = _html_text(_pdf_text(_download(
+                    article_url, timeout=min(timeout, 15.0), accept="application/pdf,*/*;q=0.5",
+                )))[:6000]
+        except RetrievalError:
+            pass
+        return Article(
+            source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id,
+            title=title, url=article_url, published_at=published, excerpt=excerpt,
+            author="Comune di Siracusa", content_buckets=endpoint.content_buckets,
+            metadata={"service_source": "primary"},
+        )
+
+    selected = sorted(candidates, key=lambda item: item[2], reverse=True)[:limit]
+    if not selected:
+        return []
+    with ThreadPoolExecutor(max_workers=min(6, len(selected))) as executor:
+        return list(executor.map(detail, selected))
+
+
 def retrieve_html(endpoint: Endpoint, limit: int = 30, timeout: float = 15.0) -> list[Article]:
     host = urlsplit(endpoint.url).netloc.lower()
     if "inpa.gov.it" in host:
         return _prepare_opportunities(endpoint, _inpa_articles(endpoint, limit, timeout), timeout)
     document = _download(endpoint.url, timeout=timeout, accept="text/html,application/xhtml+xml;q=0.9,*/*;q=0.5").decode("utf-8", errors="replace")
+    if "aretusacque.a-acqua.it" in host:
+        return _aretusacque_articles(endpoint, limit, timeout)
+    if "protezionecivilesicilia.it" in host:
+        return _drpc_articles(document, endpoint, limit, timeout)
+    if "portalepa.comune.siracusa.it" in host:
+        return _ordinance_articles(document, endpoint, limit, timeout)
     if "randstad.it" in host:
         return _prepare_opportunities(endpoint, _randstad_articles(document, endpoint, limit), timeout)
     if "gigroup.it" in host:
