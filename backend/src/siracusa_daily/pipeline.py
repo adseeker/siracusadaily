@@ -39,6 +39,7 @@ from .writer import render_html, render_markdown, save_html, save_markdown
 from .editorial import DEFAULT_MODEL, generate_editorial
 from .facebook import (
     DEFAULT_SIGNUP_URL,
+    FACEBOOK_ITEM_LIMIT,
     FacebookOutputError,
     render_facebook_outputs,
     save_facebook_outputs,
@@ -198,7 +199,7 @@ def build_newsletter(
                     clusters,
                     sources,
                     editorial_items,
-                    limit=7,
+                    limit=FACEBOOK_ITEM_LIMIT,
                     signup_url=os.getenv(
                         "SIRACUSA_FACEBOOK_SIGNUP_URL",
                         DEFAULT_SIGNUP_URL,

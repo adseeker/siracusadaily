@@ -25,8 +25,9 @@ Il workflow:
 Ogni run completo prodotto dal writer OpenAI genera anche due file deterministici,
 senza una seconda chiamata AI:
 
-- `facebook_post.txt`: post nativo con un massimo di 7 contenuti, sintesi breve e
-  fonte adiacente, senza URL nel corpo;
+- `facebook_post.txt`: post nativo con un massimo di 4 contenuti, uno per
+  `Notizie e cronaca`, `Politica ed economia`, `Cultura` e `Sport`, con sintesi
+  breve e fonte adiacente, senza URL nel corpo;
 - `facebook_sources.txt`: primo commento con fonti numerate, URL e invito
   all'iscrizione alla newsletter.
 

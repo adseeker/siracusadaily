@@ -134,9 +134,11 @@ Il recap Facebook riusa headline, summary, categoria e associazione alla fonte g
 prodotte e validate per la newsletter. Non effettua una nuova chiamata OpenAI e
 non chiede al modello di generare link o attribuzioni.
 
-Il renderer deterministico `facebook.py` seleziona fino a 7 contenuti, cercando
-prima una rappresentanza delle sezioni presenti e usando il punteggio editoriale
-per completare gli eventuali posti liberi. Produce:
+Il renderer deterministico `facebook.py` seleziona fino a 4 contenuti, al massimo
+uno per ciascuna delle sezioni `Notizie e cronaca`, `Politica ed economia`,
+`Cultura` e `Sport`. `Servizi e utilità`, `I prossimi eventi` e `Lavoro e
+opportunità` sono escluse dal recap per mantenerlo breve e focalizzato sugli
+ultimi aggiornamenti. Produce:
 
 - `facebook_post.txt`, con titolo, sintesi e fonte per ciascun elemento, senza URL;
 - `facebook_sources.txt`, con la stessa numerazione, i link originali e il link

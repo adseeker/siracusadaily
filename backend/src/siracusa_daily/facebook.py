@@ -3,12 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .categories import CATEGORY_ORDER
 from .editorial import EditorialItem
 from .models import Source, StoryCluster
 
 
-FACEBOOK_CATEGORIES = tuple(CATEGORY_ORDER)
+FACEBOOK_CATEGORIES = (
+    "Notizie e cronaca",
+    "Politica ed economia",
+    "Cultura",
+    "Sport",
+)
+FACEBOOK_ITEM_LIMIT = len(FACEBOOK_CATEGORIES)
 DEFAULT_SIGNUP_URL = (
     "https://siracusadaily.com/"
     "?utm_source=facebook&utm_medium=organic&utm_campaign=recap_giornaliero"
@@ -34,8 +39,10 @@ def _clean(value: str) -> str:
 def _select_clusters(
     clusters: list[StoryCluster], editorial_by_id: dict[str, EditorialItem], limit: int,
 ) -> list[StoryCluster]:
-    if not 1 <= limit <= 7:
-        raise FacebookOutputError("il recap Facebook deve contenere da 1 a 7 elementi")
+    if not 1 <= limit <= FACEBOOK_ITEM_LIMIT:
+        raise FacebookOutputError(
+            f"il recap Facebook deve contenere da 1 a {FACEBOOK_ITEM_LIMIT} elementi"
+        )
     eligible = [
         cluster for cluster in clusters
         if cluster.category in FACEBOOK_CATEGORIES and cluster.key in editorial_by_id
@@ -45,18 +52,10 @@ def _select_clusters(
 
     original_position = {cluster.key: index for index, cluster in enumerate(eligible)}
     selected: list[StoryCluster] = []
-    selected_ids: set[str] = set()
     for category in FACEBOOK_CATEGORIES:
         first = next((cluster for cluster in eligible if cluster.category == category), None)
         if first is not None:
             selected.append(first)
-            selected_ids.add(first.key)
-
-    remaining = sorted(
-        (cluster for cluster in eligible if cluster.key not in selected_ids),
-        key=lambda cluster: (-cluster.score, original_position[cluster.key]),
-    )
-    selected.extend(remaining)
     selected = selected[:limit]
     category_position = {category: index for index, category in enumerate(FACEBOOK_CATEGORIES)}
     return sorted(
@@ -70,7 +69,7 @@ def _select_clusters(
 
 def render_facebook_outputs(
     clusters: list[StoryCluster], sources: dict[str, Source],
-    editorial_items: list[EditorialItem], *, limit: int = 7,
+    editorial_items: list[EditorialItem], *, limit: int = FACEBOOK_ITEM_LIMIT,
     signup_url: str = DEFAULT_SIGNUP_URL,
 ) -> FacebookOutputs:
     editorial_by_id = {item.candidate_id: item for item in editorial_items}

@@ -65,14 +65,18 @@ class FacebookOutputTests(unittest.TestCase):
             [self.editorial(cluster) for cluster in clusters],
         )
 
-        self.assertEqual(outputs.item_count, 7)
+        self.assertEqual(outputs.item_count, 4)
         self.assertNotIn("http", outputs.post)
-        self.assertEqual(outputs.post.count("Fonte:"), 7)
-        self.assertIn("Titolo Facebook e1", outputs.post)
-        self.assertIn("Titolo Facebook l1", outputs.post)
-        self.assertIn("Titolo Facebook u1", outputs.post)
+        self.assertEqual(outputs.post.count("Fonte:"), 4)
+        self.assertIn("Titolo Facebook n1", outputs.post)
+        self.assertIn("Titolo Facebook p1", outputs.post)
+        self.assertIn("Titolo Facebook c1", outputs.post)
+        self.assertIn("Titolo Facebook s1", outputs.post)
         self.assertNotIn("Titolo Facebook n2", outputs.post)
-        self.assertEqual(outputs.sources.count("https://example.com/"), 7)
+        self.assertNotIn("Titolo Facebook u1", outputs.post)
+        self.assertNotIn("Titolo Facebook e1", outputs.post)
+        self.assertNotIn("Titolo Facebook l1", outputs.post)
+        self.assertEqual(outputs.sources.count("https://example.com/"), 4)
         self.assertIn("utm_source=facebook", outputs.sources)
 
     def test_recap_uses_validated_editorial_copy_instead_of_source_copy(self) -> None:
@@ -94,7 +98,7 @@ class FacebookOutputTests(unittest.TestCase):
         news = self.cluster("n1", "Notizie e cronaca", 10)
         with self.assertRaises(FacebookOutputError):
             render_facebook_outputs(
-                [news], self.sources, [self.editorial(news)], limit=8,
+                [news], self.sources, [self.editorial(news)], limit=5,
             )
 
     def test_missing_source_is_reported_as_a_facebook_output_error(self) -> None:
