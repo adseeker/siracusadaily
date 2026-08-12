@@ -14,4 +14,31 @@
   [headers.values]
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Le pagine pubbliche del sito restano protette dal framing esterno.
+[[headers]]
+  for = "/"
+  [headers.values]
     X-Frame-Options = "SAMEORIGIN"
+
+[[headers]]
+  for = "/privacy"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+
+[[headers]]
+  for = "/dashboard"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+
+# L'intake è pensato per essere incorporato in una pagina Notion:
+# niente X-Frame-Options, framing consentito solo dai domini Notion.
+[[headers]]
+  for = "/intake"
+  [headers.values]
+    Content-Security-Policy = "frame-ancestors https://www.notion.so https://*.notion.so https://*.notion.site"
+
+[[headers]]
+  for = "/intake/*"
+  [headers.values]
+    Content-Security-Policy = "frame-ancestors https://www.notion.so https://*.notion.so https://*.notion.site"
