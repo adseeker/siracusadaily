@@ -102,8 +102,8 @@ function buildPrompt({ text, link, account, today }) {
 }
 
 async function extract({ image, text, link, account }) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY non configurata sul server");
+  const apiKey = process.env.SIRACUSA_INTAKE_OPENAI_KEY || process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("SIRACUSA_INTAKE_OPENAI_KEY non configurata sul server");
   const today = new Date().toISOString().slice(0, 10);
   const content = [{ type: "input_text", text: buildPrompt({ text, link, account, today }) }];
   if (image) content.push({ type: "input_image", image_url: image.dataUrl });
