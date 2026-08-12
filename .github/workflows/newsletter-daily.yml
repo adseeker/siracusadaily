@@ -49,6 +49,7 @@ jobs:
       SIRACUSA_IMAGE_PUBLIC_BASE: https://siracusadaily.com/.netlify/functions/newsletter-image
       SIRACUSA_IMAGE_UPLOAD_TOKEN: ${{ secrets.SIRACUSA_IMAGE_UPLOAD_TOKEN }}
       NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      NOTION_SOCIAL_DB_ID: c14911bab6f34a5c8cfdcd6dbb4ab018
 
     steps:
       - name: Scarica il motore

@@ -35,6 +35,7 @@ from .opportunity_quality import (
     apply_opportunity_quality,
 )
 from .retrieval import RetrievalError, retrieve_html, retrieve_rss
+from .notion_source import NotionSourceError, retrieve_notion
 from .selection import select_stories
 from .writer import render_html, render_markdown, save_html, save_markdown
 from .editorial import DEFAULT_MODEL, generate_editorial
@@ -79,20 +80,21 @@ def ingest(
     item_limit: int = 30, methods: set[str] | None = None,
 ) -> IngestReport:
     sources = load_sources(source_map)
-    endpoints = [item for item in load_endpoints(endpoint_map) if item.source_id in sources and item.retrieval_method in {"rss", "web_html"}]
+    endpoints = [item for item in load_endpoints(endpoint_map) if item.source_id in sources and item.retrieval_method in {"rss", "web_html", "notion"}]
     if methods:
         endpoints = [item for item in endpoints if item.retrieval_method in methods]
     if endpoint_limit is not None:
         endpoints = endpoints[:endpoint_limit]
+    adapters = {"rss": retrieve_rss, "web_html": retrieve_html, "notion": retrieve_notion}
     report = IngestReport()
     connection = connect(database)
     try:
         for endpoint in endpoints:
             report.endpoints_attempted += 1
             try:
-                adapter = retrieve_rss if endpoint.retrieval_method == "rss" else retrieve_html
+                adapter = adapters[endpoint.retrieval_method]
                 articles = adapter(endpoint, limit=item_limit)
-            except RetrievalError as exc:
+            except (RetrievalError, NotionSourceError) as exc:
                 report.errors.append(f"{endpoint.endpoint_id}: {exc}")
                 continue
             report.endpoints_succeeded += 1
@@ -100,7 +102,10 @@ def ingest(
             for article in articles:
                 apply_event_quality(article)
                 apply_opportunity_quality(article)
-                apply_service_metadata(article)
+                # Un evento datato o un'opportunità strutturata non è un avviso di
+                # servizio: si evita così che un contenuto finisca in due sezioni.
+                if not is_dated_event(article) and not is_opportunity(article):
+                    apply_service_metadata(article)
             mark_multilingual_duplicates(articles)
             for article in articles:
                 article.local_score, article.local_reasons = evaluate_locality(article, sources[article.source_id])
