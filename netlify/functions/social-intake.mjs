@@ -53,7 +53,7 @@ function parseDataUrl(value) {
   return { mediaType: match[1], dataUrl: value, size: bytes.length };
 }
 
-const EXTRACTION_SCHEMA = {
+const ITEM_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
@@ -81,10 +81,24 @@ const EXTRACTION_SCHEMA = {
   ],
 };
 
+// Un post può contenere più eventi distinti: l'estrazione restituisce un elenco,
+// un elemento per ciascun contenuto separato.
+const EXTRACTION_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    contenuti: { type: "array", items: ITEM_SCHEMA },
+  },
+  required: ["contenuti"],
+};
+
 function buildPrompt({ text, link, account, today }) {
   return [
     "Sei un redattore di SiracusaDaily, una newsletter locale su Siracusa e provincia.",
     "Ricevi il materiale grezzo di un post social (una locandina come immagine e/o la caption).",
+    "Restituisci un elenco 'contenuti': UN elemento per ogni evento/contenuto DISTINTO presente nel materiale.",
+    "Se il post contiene più date o più eventi separati (anche con organizzatori, luoghi od orari diversi), crea un elemento distinto per CIASCUNO, ognuno con la propria data, ora, luogo e organizzatore.",
+    "Se invece è un unico contenuto, restituisci un solo elemento. Non unire mai eventi con date diverse nello stesso elemento.",
     "Estrai SOLO le informazioni effettivamente presenti nel materiale. Non inventare nulla.",
     "Se un campo non è ricavabile, lascialo come stringa vuota.",
     "Fondi le evidenze: la locandina di solito porta data, ora e luogo; la caption porta contesto, organizzatore e link.",
@@ -135,7 +149,8 @@ async function extract({ image, text, link, account }) {
   const payload = await result.json();
   const raw = readOutputText(payload);
   if (!raw) throw new Error("Risposta del modello vuota");
-  return JSON.parse(raw);
+  const parsed = JSON.parse(raw);
+  return Array.isArray(parsed.contenuti) ? parsed.contenuti : [];
 }
 
 function readOutputText(payload) {
@@ -231,19 +246,27 @@ export async function handler(event) {
   // risultato già estratto; "full" (default) fa entrambe le cose in un colpo.
   const action = ["extract", "save", "full"].includes(body.action) ? body.action : "full";
 
-  // Fase di sola scrittura: riusa l'estrazione già ottenuta, nessuna chiamata al modello.
+  // Fase di sola scrittura: riusa gli eventi già estratti, una riga Notion ciascuno.
   if (action === "save") {
-    const extracted = body.extracted;
-    if (!extracted || typeof extracted !== "object" || !extracted.titolo) {
+    const items = Array.isArray(body.items) ? body.items.filter((item) => item && item.titolo) : [];
+    if (!items.length) {
       return json(400, { error: "Nessun contenuto estratto da salvare" });
     }
-    extracted._captionRaw = text;
-    try {
-      const page = await createNotionRow(extracted, { link, account });
-      return json(201, { created: true, url: page.url, id: page.id, extracted });
-    } catch (error) {
-      return json(502, { error: `Scrittura Notion fallita: ${error.message}`, extracted });
+    const results = [];
+    const errors = [];
+    for (const item of items) {
+      item._captionRaw = text;
+      try {
+        const page = await createNotionRow(item, { link, account });
+        results.push({ url: page.url, id: page.id, titolo: item.titolo });
+      } catch (error) {
+        errors.push(`${item.titolo}: ${error.message}`);
+      }
     }
+    if (!results.length) {
+      return json(502, { error: `Scrittura Notion fallita: ${errors.join("; ")}` });
+    }
+    return json(201, { created: true, results, errors });
   }
 
   // Fasi con estrazione ("extract" e "full").
@@ -255,38 +278,37 @@ export async function handler(event) {
     return json(400, { error: "Serve almeno uno screenshot o del testo" });
   }
 
-  let extracted;
+  let items;
   try {
-    extracted = await extract({ image, text, link, account });
+    items = await extract({ image, text, link, account });
   } catch (error) {
     return json(502, { error: `Estrazione fallita: ${error.message}` });
   }
-  extracted._captionRaw = text;
+  for (const item of items) item._captionRaw = text;
 
-  if (extracted.pubblicabile === false) {
-    return json(200, {
-      created: false,
-      reason: extracted.motivo_esclusione || "Contenuto non pubblicabile",
-      extracted,
-    });
+  if (!items.length) {
+    return json(200, { created: false, reason: "Nessun contenuto rilevante trovato", items: [] });
   }
 
-  // Sola estrazione: restituisce l'anteprima senza scrivere, la scrittura arriva dopo.
+  // Sola estrazione: restituisce gli eventi senza scrivere, la scrittura arriva dopo.
   if (action === "extract") {
-    return json(200, { created: false, extracted });
+    return json(200, { created: false, items });
   }
 
-  let page;
-  try {
-    page = await createNotionRow(extracted, { link, account });
-  } catch (error) {
-    return json(502, { error: `Scrittura Notion fallita: ${error.message}`, extracted });
+  // "full": estrae e salva tutti gli eventi pubblicabili in un colpo.
+  const publishable = items.filter((item) => item.pubblicabile !== false);
+  const results = [];
+  const errors = [];
+  for (const item of publishable) {
+    try {
+      const page = await createNotionRow(item, { link, account });
+      results.push({ url: page.url, id: page.id, titolo: item.titolo });
+    } catch (error) {
+      errors.push(`${item.titolo}: ${error.message}`);
+    }
   }
-
-  return json(201, {
-    created: true,
-    url: page.url,
-    id: page.id,
-    extracted,
-  });
+  if (!results.length) {
+    return json(502, { error: `Scrittura Notion fallita: ${errors.join("; ") || "nessun contenuto pubblicabile"}`, items });
+  }
+  return json(201, { created: true, results, errors, items });
 }

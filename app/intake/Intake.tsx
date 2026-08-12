@@ -26,9 +26,10 @@ type Extracted = {
   da_rivedere: boolean;
 };
 
+type SaveResult = { url: string; titolo: string };
 type Phase = "edit" | "extracting" | "review" | "saving";
 type Notice =
-  | { kind: "done"; text: string; url: string }
+  | { kind: "done"; count: number; results: SaveResult[]; failed: string[] }
   | { kind: "skipped"; text: string }
   | { kind: "error"; text: string };
 
@@ -70,7 +71,8 @@ export function Intake() {
   const [dragging, setDragging] = useState(false);
 
   const [phase, setPhase] = useState<Phase>("edit");
-  const [extracted, setExtracted] = useState<Extracted | null>(null);
+  const [items, setItems] = useState<Extracted[] | null>(null);
+  const [include, setInclude] = useState<boolean[]>([]);
   const [notice, setNotice] = useState<Notice | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -96,7 +98,8 @@ export function Intake() {
     setText("");
     setLink("");
     setAccount("");
-    setExtracted(null);
+    setItems(null);
+    setInclude([]);
     setNotice(null);
     setPhase("edit");
     if (fileInput.current) fileInput.current.value = "";
@@ -104,7 +107,7 @@ export function Intake() {
 
   // Ogni modifica agli input invalida un'estrazione già mostrata.
   function invalidate() {
-    if (extracted) setExtracted(null);
+    if (items) { setItems(null); setInclude([]); }
     if (phase === "review") setPhase("edit");
     if (notice?.kind === "skipped") setNotice(null);
   }
@@ -114,8 +117,7 @@ export function Intake() {
     try {
       const dataUrl = await downscale(file);
       setImage(dataUrl);
-      setNotice(null);
-      void runExtract(dataUrl); // estrazione automatica appena caricato
+      invalidate(); // niente estrazione automatica: si avvia solo col pulsante
     } catch (error) {
       setNotice({ kind: "error", text: error instanceof Error ? error.message : "Immagine non valida" });
     }
@@ -132,9 +134,8 @@ export function Intake() {
     if (item) void acceptFile(item.getAsFile());
   }
 
-  async function runExtract(imageOverride?: string | null) {
-    const img = imageOverride ?? image;
-    if (!img && !text.trim()) {
+  async function runExtract() {
+    if (!image && !text.trim()) {
       setNotice({ kind: "error", text: "Serve almeno uno screenshot o del testo" });
       return;
     }
@@ -144,7 +145,7 @@ export function Intake() {
       const response = await fetch(ENDPOINT, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-        body: JSON.stringify({ action: "extract", image: img, text: text.trim(), link: link.trim(), account: account.trim() }),
+        body: JSON.stringify({ action: "extract", image, text: text.trim(), link: link.trim(), account: account.trim() }),
       });
       if (response.status === 401) return handleUnauthorized();
       const data = await response.json();
@@ -153,12 +154,14 @@ export function Intake() {
         setPhase("edit");
         return;
       }
-      if (data.reason) {
-        setNotice({ kind: "skipped", text: data.reason });
+      const found: Extracted[] = Array.isArray(data.items) ? data.items : [];
+      if (!found.length) {
+        setNotice({ kind: "skipped", text: data.reason || "Nessun contenuto trovato" });
         setPhase("edit");
         return;
       }
-      setExtracted(data.extracted);
+      setItems(found);
+      setInclude(found.map((entry) => entry.pubblicabile !== false));
       setPhase("review");
     } catch (error) {
       setNotice({ kind: "error", text: error instanceof Error ? error.message : "Rete non disponibile" });
@@ -167,14 +170,16 @@ export function Intake() {
   }
 
   async function runSave() {
-    if (!extracted) return;
+    if (!items) return;
+    const selected = items.filter((_, index) => include[index]);
+    if (!selected.length) return;
     setPhase("saving");
     setNotice(null);
     try {
       const response = await fetch(ENDPOINT, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-        body: JSON.stringify({ action: "save", extracted, text: text.trim(), link: link.trim(), account: account.trim() }),
+        body: JSON.stringify({ action: "save", items: selected, text: text.trim(), link: link.trim(), account: account.trim() }),
       });
       if (response.status === 401) return handleUnauthorized();
       const data = await response.json();
@@ -183,13 +188,17 @@ export function Intake() {
         setPhase("review");
         return;
       }
-      const title = data.extracted?.titolo || "Contenuto";
+      const results: SaveResult[] = Array.isArray(data.results) ? data.results : [];
       resetAll();
-      setNotice({ kind: "done", text: title, url: data.url });
+      setNotice({ kind: "done", count: results.length, results, failed: Array.isArray(data.errors) ? data.errors : [] });
     } catch (error) {
       setNotice({ kind: "error", text: error instanceof Error ? error.message : "Rete non disponibile" });
       setPhase("review");
     }
+  }
+
+  function toggleInclude(index: number) {
+    setInclude((current) => current.map((value, i) => (i === index ? !value : value)));
   }
 
   function handleUnauthorized() {
@@ -223,13 +232,15 @@ export function Intake() {
   }
 
   const busy = phase === "extracting" || phase === "saving";
+  const inReview = phase === "review" || phase === "saving";
+  const selectedCount = include.filter(Boolean).length;
 
   return (
     <main className={styles.shell} onPaste={onPaste}>
       <div className={styles.card}>
         <header className={styles.head}>
           <h1 className={styles.title}>Nuovo contenuto</h1>
-          <p className={styles.sub}>Trascina uno screenshot: l&apos;estrazione parte da sola. Puoi aggiungere la caption.</p>
+          <p className={styles.sub}>Carica uno screenshot e/o incolla la caption, poi premi Estrai.</p>
         </header>
 
         <div
@@ -293,25 +304,50 @@ export function Intake() {
 
         {phase === "extracting" && <p className={styles.working}>L&apos;agente sta leggendo il contenuto…</p>}
 
-        {(phase === "review" || phase === "saving") && extracted && (
+        {inReview && items && (
           <section className={styles.reviewBox}>
-            <div className={styles.reviewHead}>
-              <strong>{extracted.titolo || "Senza titolo"}</strong>
-              {extracted.da_rivedere && <span className={styles.flag}>da rivedere</span>}
-            </div>
-            <Preview extracted={extracted} />
-            {extracted.provenienza_campi && <p className={styles.prov}>{extracted.provenienza_campi}</p>}
+            <p className={styles.reviewCount}>
+              {items.length === 1 ? "1 contenuto trovato" : `${items.length} contenuti trovati`}
+              {items.length > 1 ? " — deseleziona quelli da scartare" : ""}
+            </p>
+            {items.map((entry, index) => (
+              <article key={index} className={`${styles.eventCard} ${include[index] ? "" : styles.eventOff}`}>
+                <div className={styles.eventPick}>
+                  <input
+                    type="checkbox"
+                    checked={include[index]}
+                    onChange={() => toggleInclude(index)}
+                    disabled={phase === "saving"}
+                    aria-label={`Includi ${entry.titolo || "contenuto"}`}
+                  />
+                </div>
+                <div className={styles.eventBody}>
+                  <div className={styles.reviewHead}>
+                    <strong>{entry.titolo || "Senza titolo"}</strong>
+                    {entry.da_rivedere && <span className={styles.flag}>da rivedere</span>}
+                    {entry.pubblicabile === false && <span className={styles.flagOff}>scartato dal modello</span>}
+                  </div>
+                  {entry.pubblicabile === false && entry.motivo_esclusione && (
+                    <p className={styles.prov}>{entry.motivo_esclusione}</p>
+                  )}
+                  <Preview extracted={entry} />
+                  {entry.provenienza_campi && <p className={styles.prov}>{entry.provenienza_campi}</p>}
+                </div>
+              </article>
+            ))}
           </section>
         )}
 
-        {phase === "edit" || phase === "extracting" ? (
+        {!inReview ? (
           <button type="button" className={styles.submit} onClick={() => void runExtract()} disabled={busy}>
             {phase === "extracting" ? "Estraggo…" : "Estrai contenuti"}
           </button>
         ) : (
           <div className={styles.actions}>
-            <button type="button" className={styles.submit} onClick={() => void runSave()} disabled={busy}>
-              {phase === "saving" ? "Salvo…" : "Salva su Notion"}
+            <button type="button" className={styles.submit} onClick={() => void runSave()} disabled={busy || selectedCount === 0}>
+              {phase === "saving"
+                ? "Salvo…"
+                : selectedCount <= 1 ? "Salva su Notion" : `Salva su Notion (${selectedCount})`}
             </button>
             <button type="button" className={styles.linkBtn} onClick={() => void runExtract()} disabled={busy}>Ri-estrai</button>
             <button type="button" className={styles.linkBtn} onClick={resetAll} disabled={busy}>Ricomincia</button>
@@ -323,9 +359,15 @@ export function Intake() {
         <section className={`${styles.result} ${styles[`result_${notice.kind}`]}`}>
           {notice.kind === "done" && (
             <>
-              <strong>Salvato ✓</strong>
-              <p>{notice.text}</p>
-              <a href={notice.url} target="_blank" rel="noopener noreferrer" className={styles.linkBtn}>Apri la riga in Notion →</a>
+              <strong>{notice.count === 1 ? "Salvato ✓" : `Salvati ${notice.count} contenuti ✓`}</strong>
+              <ul className={styles.doneList}>
+                {notice.results.map((entry) => (
+                  <li key={entry.url}>
+                    <a href={entry.url} target="_blank" rel="noopener noreferrer">{entry.titolo}</a>
+                  </li>
+                ))}
+              </ul>
+              {notice.failed.length > 0 && <p className={styles.prov}>Non salvati: {notice.failed.join("; ")}</p>}
             </>
           )}
           {notice.kind === "skipped" && (
