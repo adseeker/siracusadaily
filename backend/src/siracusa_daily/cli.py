@@ -23,6 +23,7 @@ from .database import (
     record_brevo_draft,
 )
 from .pipeline import build_newsletter, ingest
+from .events_feed import EventsFeedError, publish_events_feed
 from .editorial import DEFAULT_MODEL, EditorialError
 from .mailer import MailerError, send_html
 from .notion import (
@@ -284,6 +285,12 @@ def main() -> None:
     except EditorialError as exc:
         raise SystemExit(f"Writer OpenAI non disponibile: {exc}") from exc
     print(f"Newsletter #{run_id}: {count} notizie; writer={writer_used} -> {args.output}")
+    try:
+        published_events = publish_events_feed(args.source_map, args.database)
+        if published_events >= 0:
+            print(f"Feed eventi: {published_events} eventi pubblicati su /eventi")
+    except EventsFeedError as exc:
+        print(f"WARN FEED EVENTI {exc}")
     if brevo_delivery:
         if writer_used != "openai":
             raise SystemExit("Campagna Brevo annullata: una newsletter fallback non può essere pubblicata")

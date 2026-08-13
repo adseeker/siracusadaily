@@ -228,6 +228,7 @@ def build_newsletter(
                     else os.getenv("SIRACUSA_UNSUBSCRIBE_URL", "")
                 ),
                 signup_url=os.getenv("SIRACUSA_SIGNUP_URL", ""),
+                events_base_url=os.getenv("SIRACUSA_EVENTS_BASE_URL", ""),
             )
             save_html(output, content)
         else:

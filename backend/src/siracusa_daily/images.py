@@ -339,19 +339,27 @@ def publish_newsletter_images(
         report.attempted += 1
         article = cluster.representative
         try:
-            candidate = discover_article_image(article.url)
-            if candidate is None:
-                report.skipped += 1
-                continue
-            prepared = prepare_thumbnail(download_image(candidate.url))
+            # Quando la fonte espone già l'immagine dell'evento (es. la locandina
+            # via API), la usiamo direttamente invece dell'Open Graph della pagina,
+            # che per le SPA restituisce il logo del sito.
+            source_image = article.metadata.get("source_image_url", "").strip()
+            if source_image.startswith("http"):
+                image_source_url = source_image
+            else:
+                candidate = discover_article_image(article.url)
+                if candidate is None:
+                    report.skipped += 1
+                    continue
+                image_source_url = candidate.url
+            prepared = prepare_thumbnail(download_image(image_source_url))
             public_url = (
-                candidate.url
+                image_source_url
                 if mode == "remote"
                 else upload_thumbnail(prepared, image_key(edition_date, category, article.url))
             )
             article.metadata.update({
                 "newsletter_image_url": public_url,
-                "newsletter_image_source_url": candidate.url,
+                "newsletter_image_source_url": image_source_url,
                 "newsletter_image_alt": article.title[:180],
                 "newsletter_image_width": str(prepared.width),
                 "newsletter_image_height": str(prepared.height),

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -7,6 +8,21 @@ from .models import Article, StoryCluster
 
 ROME = ZoneInfo("Europe/Rome")
 EVENT_DATE_LABELS = {"Inizio", "Data"}
+
+
+def event_public_id(canonical_url: str) -> str:
+    """Stable public identifier for an event, used in /eventi?event=<id> links."""
+    return hashlib.sha256(canonical_url.encode("utf-8")).hexdigest()[:12]
+
+
+def event_is_past(article: Article, reference: datetime | None = None) -> bool:
+    """True when the event has already ended (or started, if no end) before now."""
+    interval = event_interval(article)
+    if interval is None:
+        return False
+    start, end = interval
+    now = reference or datetime.now(timezone.utc)
+    return (end or start) < now
 
 
 def _metadata_datetime(article: Article, key: str) -> datetime | None:
