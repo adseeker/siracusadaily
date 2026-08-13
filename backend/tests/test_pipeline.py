@@ -937,6 +937,24 @@ class PipelineTests(unittest.TestCase):
         self.assertNotIn("Bozza generata automaticamente", output)
         self.assertNotIn("Le informazioni locali da conoscere oggi.", output)
 
+    def test_html_includes_referral_ctas_with_tracked_link(self) -> None:
+        article = self.article("Siracusa, una notizia locale")
+        cluster = StoryCluster("story-1", [article], score=0.9, representative=article)
+        output = render_html(article.published_at.date(), [cluster], {"SRC-A": self.source})
+        self.assertIn("Iscriviti gratis a SiracusaDaily", output)
+        self.assertIn("Inoltra SiracusaDaily a un siracusano", output)
+        self.assertIn("utm_campaign=viral_loop", output)
+
+    def test_html_uses_custom_signup_url_when_provided(self) -> None:
+        article = self.article("Siracusa, una notizia locale")
+        cluster = StoryCluster("story-1", [article], score=0.9, representative=article)
+        output = render_html(
+            article.published_at.date(), [cluster], {"SRC-A": self.source},
+            signup_url="https://siracusadaily.com/?utm_source=custom_test",
+        )
+        self.assertIn("https://siracusadaily.com/?utm_source=custom_test", output)
+        self.assertNotIn("utm_campaign=viral_loop", output)
+
     def test_event_section_uses_the_next_events_heading(self) -> None:
         article = self.article("Concerto a Siracusa")
         article.content_buckets = ("eventi",)

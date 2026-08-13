@@ -23,6 +23,12 @@ CATEGORY_LABELS = {
     "Eventi": "I prossimi eventi",
 }
 
+# Link tracciato usato dai CTA di referral interni alla newsletter (viral loop).
+DEFAULT_SIGNUP_URL = (
+    "https://siracusadaily.com/"
+    "?utm_source=newsletter&utm_medium=forward&utm_campaign=viral_loop"
+)
+
 WEEKDAYS = ("lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica")
 MONTHS = (
     "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
@@ -168,7 +174,7 @@ def _summary_html(article, summary: str) -> str:
 def render_html(
     edition_date: date, clusters: list[StoryCluster], sources: dict[str, Source],
     editorial_items: list[EditorialItem] | None = None, publisher_name: str = "SiracusaDaily",
-    publisher_address: str = "", unsubscribe_url: str = "",
+    publisher_address: str = "", unsubscribe_url: str = "", signup_url: str = "",
 ) -> str:
     editorial_by_id = {item.candidate_id: item for item in editorial_items or []}
     grouped = {category: [] for category in CATEGORY_ORDER}
@@ -217,6 +223,17 @@ def render_html(
     if unsubscribe_url:
         unsubscribe = f'<br><a href="{escape(unsubscribe_url, quote=True)}" style="color:#475569;">Annulla iscrizione</a>'
 
+    # Viral loop interno: un unico blocco in fondo invita l'iscritto a inoltrare
+    # l'edizione e chi l'ha ricevuta inoltrata a iscriversi. Il link è tracciato.
+    signup_link = escape(signup_url or DEFAULT_SIGNUP_URL, quote=True)
+    referral_cta = f'''<tr><td class="sd-forward-bottom" style="padding:22px 28px 0;background:#ffffff;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
+        <td style="padding:18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;text-align:center;font:15px/1.6 Arial,sans-serif;color:#334155;">📩 <strong style="color:#172033;">Ti è stata utile oggi?</strong> Inoltra SiracusaDaily a un siracusano che dovrebbe leggerla.
+          <div style="height:1px;line-height:1px;font-size:0;background:#e2e8f0;margin:14px 0;">&nbsp;</div>
+          <span style="font:14px/1.55 Arial,sans-serif;color:#475569;">Ti hanno inoltrato questa email? <a href="{signup_link}" style="color:#1d4ed8;font-weight:700;text-decoration:underline;text-underline-offset:2px;">Iscriviti gratis a SiracusaDaily →</a></span></td>
+      </tr></table>
+    </td></tr>'''
+
     return f'''<!doctype html>
 <html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SiracusaDaily</title>
 <style>
@@ -226,6 +243,7 @@ def render_html(
   .sd-header {{ padding:30px 20px 18px !important; }}
   .sd-section-title {{ padding:13px 20px !important; }}
   .sd-section-body {{ padding-left:20px !important; padding-right:20px !important; }}
+  .sd-forward-bottom {{ padding-left:20px !important; padding-right:20px !important; }}
   .sd-card {{ padding:24px 0 !important; }}
   .sd-title {{ font-size:20px !important; line-height:1.3 !important; overflow-wrap:anywhere !important; }}
   .sd-title-featured {{ font-size:22px !important; }}
@@ -244,6 +262,7 @@ def render_html(
       <p style="margin:9px 0 0;font:13px/1.45 Arial,sans-serif;color:#64748b;">Edizione del {edition_date:%d/%m/%Y}</p>
     </td></tr>
     {''.join(sections)}
+    {referral_cta}
     <tr><td class="sd-footer" style="padding:24px 28px 28px;border-top:1px solid #e5e7eb;text-align:center;background:#ffffff;font:12px/1.65 Arial,sans-serif;color:#64748b;">{footer}{unsubscribe}</td></tr>
   </table>
 </td></tr></table></body></html>'''
