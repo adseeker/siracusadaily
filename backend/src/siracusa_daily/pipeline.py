@@ -227,6 +227,7 @@ def build_newsletter(
                     unsubscribe_url if unsubscribe_url is not None
                     else os.getenv("SIRACUSA_UNSUBSCRIBE_URL", "")
                 ),
+                signup_url=os.getenv("SIRACUSA_SIGNUP_URL", ""),
             )
             save_html(output, content)
         else:
