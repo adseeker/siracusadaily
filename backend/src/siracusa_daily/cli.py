@@ -75,6 +75,10 @@ def parser() -> argparse.ArgumentParser:
     ingest_parser.add_argument("--endpoint-limit", type=int)
     ingest_parser.add_argument("--item-limit", type=int, default=30)
     ingest_parser.add_argument("--method", action="append", choices=["rss", "web_html", "notion"])
+    events_refresh = commands.add_parser("events-refresh")
+    events_refresh.add_argument("--endpoint-limit", type=int)
+    events_refresh.add_argument("--item-limit", type=int, default=30)
+    events_refresh.add_argument("--method", action="append", choices=["rss", "web_html", "notion"])
     build = commands.add_parser("build")
     build.add_argument("--output", type=Path, default=PROJECT / "output/newsletter-draft.md")
     build.add_argument("--date", type=date.fromisoformat)
@@ -231,6 +235,25 @@ def main() -> None:
             f"lista '{draft.list_name}' (ID {draft.list_id})"
         )
         print("Apri Brevo > Marketing > Campagne per controllarla. Nessun invio è stato eseguito.")
+        return
+    if args.command == "events-refresh":
+        # Aggiorna l'archivio /eventi in modo indipendente dalla newsletter:
+        # ingest di tutte le fonti e pubblicazione del feed, senza OpenAI né Brevo.
+        report = ingest(
+            args.source_map, args.endpoint_map, args.database, args.endpoint_limit, args.item_limit,
+            set(args.method) if args.method else None,
+        )
+        print(
+            f"Retrieval: {report.endpoints_succeeded}/{report.endpoints_attempted} endpoint; "
+            f"{report.articles_seen} articoli; {report.articles_local} locali"
+        )
+        for error in report.errors:
+            print(f"WARN {error}")
+        try:
+            published = publish_events_feed(args.source_map, args.database)
+            print(f"Feed eventi: {published} eventi pubblicati su /eventi")
+        except EventsFeedError as exc:
+            print(f"WARN FEED EVENTI {exc}")
         return
     brevo_delivery = bool(
         getattr(args, "brevo_draft", False)
