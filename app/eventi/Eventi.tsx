@@ -18,7 +18,6 @@ type EventItem = {
   description: string;
   image: string;
   booking_url: string;
-  source: string;
   category: string;
   past: boolean;
 };
@@ -207,7 +206,6 @@ function Detail({ detail, loading, error, onBack }: { detail: EventItem | null; 
             <p className={styles.detailWhere}>{[detail.location, detail.address].filter(Boolean).join(" · ")}</p>
           )}
           {detail.description && <p className={styles.detailDesc}>{detail.description}</p>}
-          <p className={styles.detailSource}>Fonte: {detail.source}</p>
           {detail.booking_url && (
             <a className={styles.book} href={detail.booking_url} target="_blank" rel="noopener noreferrer">Prenota / Vai al sito →</a>
           )}

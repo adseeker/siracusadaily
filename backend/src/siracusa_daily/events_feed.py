@@ -42,7 +42,7 @@ def _booking_url(article: Article) -> str:
     return ""
 
 
-def _record(article: Article, source: Source | None, reference: datetime) -> dict:
+def _record(article: Article, reference: datetime) -> dict:
     start, end = event_interval(article)
     meta = article.metadata
     image = meta.get("source_image_url", "").strip() or meta.get("newsletter_image_url", "").strip()
@@ -57,7 +57,6 @@ def _record(article: Article, source: Source | None, reference: datetime) -> dic
         "description": _clean(article.excerpt),
         "image": image if image.startswith("http") else "",
         "booking_url": _booking_url(article),
-        "source": _clean(source.name if source else article.source_id),
         "category": _clean(meta.get("event_category", "")),
         "past": event_is_past(article, reference),
     }
@@ -75,7 +74,7 @@ def build_feed(
     for article in articles:
         if event_interval(article) is None:
             continue
-        record = _record(article, sources.get(article.source_id), reference)
+        record = _record(article, reference)
         # Deduplica eventi equivalenti da fonti diverse (stesso titolo, stesso
         # giorno), tenendo la scheda con più dati.
         key = (normalize_text(record["title"])[:80], record["start"][:10])
