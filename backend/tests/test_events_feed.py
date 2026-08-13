@@ -55,6 +55,13 @@ class BuildFeedTests(unittest.TestCase):
         self.assertEqual(len(feed), 1)
         self.assertEqual(feed[0]["image"], "https://img/x.jpg")
 
+    def test_removes_em_dash_from_displayed_text(self) -> None:
+        start = datetime(2026, 9, 3, 21, tzinfo=ROME)
+        article = event_article("Mario Biondi — 20 anni", "https://x/9", start)
+        feed = build_feed([article], SOURCES)
+        self.assertNotIn("—", feed[0]["title"])
+        self.assertIn("Mario Biondi - 20 anni", feed[0]["title"])
+
     def test_booking_falls_back_to_source_url_except_base44(self) -> None:
         start = datetime(2026, 9, 2, 21, tzinfo=ROME)
         eb = event_article("Mostra", "https://eventbrite.com/e/9", start, source_id="SRC-B")

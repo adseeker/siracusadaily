@@ -21,6 +21,11 @@ class EventsFeedError(RuntimeError):
     pass
 
 
+def _clean(text: str) -> str:
+    """Rimuove em dash ed en dash dal testo mostrato in pagina."""
+    return (text or "").replace("—", "-").replace("–", "-").strip()
+
+
 def _has_time(value: datetime) -> bool:
     local = value.astimezone(ROME)
     return bool(local.hour or local.minute)
@@ -43,17 +48,17 @@ def _record(article: Article, source: Source | None, reference: datetime) -> dic
     image = meta.get("source_image_url", "").strip() or meta.get("newsletter_image_url", "").strip()
     return {
         "id": event_public_id(article.url),
-        "title": article.title,
+        "title": _clean(article.title),
         "start": start.isoformat(),
         "end": end.isoformat() if end else None,
         "all_day": not _has_time(start),
-        "location": meta.get("venue") or meta.get("location") or "",
-        "address": meta.get("address", ""),
-        "description": article.excerpt,
+        "location": _clean(meta.get("venue") or meta.get("location") or ""),
+        "address": _clean(meta.get("address", "")),
+        "description": _clean(article.excerpt),
         "image": image if image.startswith("http") else "",
         "booking_url": _booking_url(article),
-        "source": source.name if source else article.source_id,
-        "category": meta.get("event_category", ""),
+        "source": _clean(source.name if source else article.source_id),
+        "category": _clean(meta.get("event_category", "")),
         "past": event_is_past(article, reference),
     }
 
