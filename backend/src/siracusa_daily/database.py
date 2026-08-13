@@ -155,6 +155,23 @@ def upcoming_event_articles(
     return sorted(events, key=event_sort_key)
 
 
+def all_event_articles(
+    connection: sqlite3.Connection, minimum_local_score: float = 0.55,
+) -> list[Article]:
+    """Every stored event (past and future) for the public /eventi archive."""
+    rows = connection.execute(
+        """SELECT * FROM articles
+           WHERE local_score >= ?
+             AND json_extract(metadata, '$.date_label') IN ('Inizio', 'Data')""",
+        (minimum_local_score,),
+    ).fetchall()
+    events = [
+        article for article in _articles_from_rows(rows)
+        if event_is_publishable(article)
+    ]
+    return sorted(events, key=event_sort_key)
+
+
 def active_opportunity_articles(
     connection: sqlite3.Connection, edition_date: date,
     minimum_local_score: float = 0.55, grace_days: int = 3,

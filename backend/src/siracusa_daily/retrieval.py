@@ -415,14 +415,27 @@ def _eventi_siracusa_articles(payload: str, endpoint: Endpoint, limit: int) -> l
             description = _html_text(str(event.get("long_description") or ""))
         excerpt = " — ".join(value for value in (description, location) if value)
         url = canonical_url(f"{endpoint.url.rstrip('/')}/?event={event_id}")
+        extras = {
+            "location": location,
+            "event_category": _html_text(str(event.get("category") or "")),
+        }
+        image = str(event.get("image_url") or "").strip()
+        if image.startswith("http"):
+            extras["source_image_url"] = image
+        # La pagina Base44 non è deep-linkabile: preferiamo il link reale di
+        # prenotazione dell'evento come destinazione esterna.
+        booking = next(
+            (str(event.get(key) or "").strip() for key in ("ticket_link", "booking_link", "contact_website")
+             if str(event.get(key) or "").strip().startswith("http")),
+            "",
+        )
+        if booking:
+            extras["booking_url"] = booking
         articles.append(Article(
             source_id=endpoint.source_id, endpoint_id=endpoint.endpoint_id, title=title,
             url=url, published_at=start, excerpt=excerpt, author="Eventi Siracusa",
             content_buckets=endpoint.content_buckets,
-            metadata=_event_metadata(
-                start, end, location=location,
-                event_category=_html_text(str(event.get("category") or "")),
-            ),
+            metadata=_event_metadata(start, end, **extras),
         ))
     return sorted(articles, key=lambda article: article.published_at)[:limit]
 

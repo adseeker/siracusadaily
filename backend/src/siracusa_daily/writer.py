@@ -8,6 +8,10 @@ from zoneinfo import ZoneInfo
 from .models import Source, StoryCluster
 from .editorial import EditorialItem
 from .categories import CATEGORY_ORDER
+from .events import event_public_id
+
+# Pagina eventi ospitata: tutti gli eventi della newsletter puntano qui.
+DEFAULT_EVENTS_BASE_URL = "https://siracusadaily.com/eventi"
 
 CATEGORY_COLORS = {
     "Notizie e cronaca": "#1d4ed8",
@@ -175,7 +179,9 @@ def render_html(
     edition_date: date, clusters: list[StoryCluster], sources: dict[str, Source],
     editorial_items: list[EditorialItem] | None = None, publisher_name: str = "SiracusaDaily",
     publisher_address: str = "", unsubscribe_url: str = "", signup_url: str = "",
+    events_base_url: str = "",
 ) -> str:
+    events_base = events_base_url or DEFAULT_EVENTS_BASE_URL
     editorial_by_id = {item.candidate_id: item for item in editorial_items or []}
     grouped = {category: [] for category in CATEGORY_ORDER}
     for cluster in clusters:
@@ -200,11 +206,19 @@ def render_html(
             title_size = 22 if card_index == 0 else 20
             featured_class = " sd-title-featured" if card_index == 0 else ""
             divider = "border-bottom:1px solid #dbe1e8;" if card_index < len(category_clusters) - 1 else ""
+            # Gli eventi puntano alla pagina evento ospitata su SiracusaDaily;
+            # le altre categorie linkano direttamente la fonte.
+            if category == "Eventi":
+                link_href = f"{events_base}?event={event_public_id(article.url)}"
+                link_label = "Vedi l'evento →"
+            else:
+                link_href = article.url
+                link_label = f"Approfondisci su {_display_text(source.name)} →"
             cards.append(f'''<tr><td class="sd-card" style="padding:26px 0;{divider}">
               {badge}
               <h3 class="sd-title{featured_class}" style="margin:0 0 11px;font:700 {title_size}px/1.3 Arial,sans-serif;color:#172033;">{escape(headline)}</h3>
               {_summary_html(article, summary)}
-              <a class="sd-link" href="{escape(article.url, quote=True)}" style="font:700 14px/1.5 Arial,sans-serif;color:#075985;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;">Approfondisci su {escape(_display_text(source.name))} →</a>
+              <a class="sd-link" href="{escape(link_href, quote=True)}" style="font:700 14px/1.5 Arial,sans-serif;color:#075985;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;">{escape(link_label)}</a>
             </td></tr>''')
         if cards:
             sections.append(f'''<tr><td style="height:28px;background:#ffffff;font-size:0;line-height:0;">&nbsp;</td></tr>
