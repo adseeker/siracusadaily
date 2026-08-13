@@ -19,6 +19,7 @@ on:
           - preflight
           - full
           - notion-test
+          - events-refresh
 
 permissions:
   contents: write
@@ -114,6 +115,18 @@ jobs:
             --skip-existing-brevo-date \
             "$delivery_option" 2>&1 | tee runtime/run.log
 
+      - name: Aggiorna l'archivio eventi /eventi
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'events-refresh'
+        run: |
+          mkdir -p runtime
+          set -o pipefail
+          siracusa-daily \
+            --source-map backend/data/source_map.csv \
+            --endpoint-map backend/data/endpoint_map.csv \
+            --database .automation-state/siracusa_daily.db \
+            events-refresh \
+            --item-limit 30 2>&1 | tee runtime/events-refresh.log
+
       - name: Rende il recap disponibile su Notion
         if: github.event_name == 'schedule' || inputs.mode == 'full'
         continue-on-error: true
@@ -137,7 +150,7 @@ jobs:
           fi
 
       - name: Consolida il database
-        if: always() && (github.event_name == 'schedule' || inputs.mode == 'full')
+        if: always() && (github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'events-refresh')
         run: |
           python - <<'PY'
           import sqlite3
@@ -150,7 +163,7 @@ jobs:
           PY
 
       - name: Salva lo storico per il giorno successivo
-        if: always() && (github.event_name == 'schedule' || inputs.mode == 'full')
+        if: always() && (github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'events-refresh')
         working-directory: .automation-state
         run: |
           git config user.name "SiracusaDaily Automation"
@@ -164,7 +177,7 @@ jobs:
           fi
 
       - name: Conserva HTML e log del run
-        if: always() && (github.event_name == 'schedule' || inputs.mode == 'full')
+        if: always() && (github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'events-refresh')
         uses: actions/upload-artifact@v6
         with:
           name: newsletter-${{ github.run_id }}
