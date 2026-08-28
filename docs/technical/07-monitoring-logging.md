@@ -2,7 +2,7 @@
 
 [← Indice della documentazione tecnica](../../SIRACUSADAILY_TECHNICAL.md)
 
-Ultimo aggiornamento: 11 agosto 2026<br>
+Ultimo aggiornamento: 28 agosto 2026<br>
 Stato: sistema operativo in produzione
 
 
@@ -44,13 +44,30 @@ collegamento al run; per la stessa data non viene aperta una seconda issue ident
 
 Il timeout massimo del job è 55 minuti.
 
+## Recovery Netlify
+
+La Scheduled Function `newsletter-recovery` espone nei log Netlify:
+
+- l'invocazione UTC e l'eventuale esclusione della finestra non corrispondente;
+- l'invio del `workflow_dispatch` in modalità `recovery`;
+- errori per token assente, risposta GitHub diversa da `204` o problemi di rete.
+
+Il workflow generato dal recovery compare in GitHub Actions con evento
+`workflow_dispatch`. La modalità `recovery`, a differenza della modalità manuale
+`full`, abilita il percorso `--brevo-auto-schedule`. La presenza della campagna
+Brevo del giorno permette di distinguere un recupero realmente produttivo da un
+run terminato correttamente per idempotenza.
+
 ## Persistenza anche in caso di errore
 
 Il checkpoint SQLite e il salvataggio del branch operativo vengono eseguiti con `if: always()` nei run completi. Gli articoli già acquisiti non vengono quindi persi se una fase successiva fallisce.
 
 ## Limiti attuali del monitoring
 
-- Non esiste un sistema esterno di alerting oltre alle issue GitHub.
+- Le issue GitHub segnalano i run falliti ma non l'assenza totale di un trigger;
+  Netlify copre questo caso alle 07:30, senza ancora inviare un alert separato.
+- Gli errori della Scheduled Function sono visibili nei log Netlify ma non generano
+  attualmente una notifica esterna dedicata.
 - I warning dei singoli endpoint non producono alert separati.
 - La copertura immagini è disponibile nei log ma non ancora come KPI storico in dashboard.
 - Le motivazioni di quarantena sono nel database, non visualizzate nella dashboard.

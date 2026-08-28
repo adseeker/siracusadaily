@@ -2,7 +2,7 @@
 
 [← Indice della documentazione tecnica](../../SIRACUSADAILY_TECHNICAL.md)
 
-Ultimo aggiornamento: 11 agosto 2026<br>
+Ultimo aggiornamento: 28 agosto 2026<br>
 Stato: sistema operativo in produzione
 
 
@@ -57,6 +57,10 @@ Con una Admin Key vengono letti:
 - durata media totale;
 - durata media dei singoli componenti;
 - elenco degli ultimi run con evento, stato, durata e link.
+
+I run delle 06:30 e 07:00 hanno evento `schedule`; il recupero delle 07:30 ha
+evento `workflow_dispatch` e input `mode=recovery`. La dashboard attuale mostra
+l'evento ma non distingue ancora graficamente `full` da `recovery`.
 
 Le medie per step usano gli ultimi 12 run completati; l'elenco visualizzato è limitato agli ultimi 15.
 

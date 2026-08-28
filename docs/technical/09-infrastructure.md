@@ -10,7 +10,7 @@ Stato: sistema operativo in produzione
 
 | Area | Tecnologia | Ruolo |
 |---|---|---|
-| Repository | GitHub privato `adseeker/siracusadaily` | Codice, workflow e issue |
+| Repository | GitHub `adseeker/siracusadaily`, attualmente pubblico | Codice, workflow e issue |
 | Automazione | GitHub Actions e Netlify Scheduled Functions | Motore quotidiano, scheduler principale e recovery indipendente |
 | Backend | Python 3.12 in produzione | Retrieval, processing e generazione |
 | Persistenza | SQLite WAL | Articoli, run e storico editoriale |
@@ -68,7 +68,7 @@ Il database viene sottoposto a checkpoint WAL, committato dal bot e usato dal ru
 
 - viene attivata alle 07:30 `Europe/Rome`, con gestione automatica di ora solare e legale;
 - richiama via API il workflow GitHub in modalità `recovery`;
-- usa un token GitHub limitato al repository e alla scrittura Actions;
+- usa un token GitHub fine-grained limitato al repository, con Actions in lettura e scrittura;
 - non esegue il motore su Netlify e non contiene chiavi OpenAI o Brevo;
 - il controllo Brevo nel workflow impedisce la creazione di campagne duplicate.
 
@@ -81,7 +81,10 @@ Il database viene sottoposto a checkpoint WAL, committato dal bot e usato dal ru
 | `SIRACUSA_IMAGE_UPLOAD_TOKEN` | Upload protetto delle thumbnail |
 | `NOTION_TOKEN` | Aggiornamento della pagina operativa del recap Facebook |
 
-La variabile repository `SIRACUSA_AUTO_SEND_ENABLED` non contiene credenziali e agisce da kill switch dell'invio automatico. Deve valere esattamente `true` per i run schedulati.
+La variabile repository `SIRACUSA_AUTO_SEND_ENABLED` non contiene credenziali e
+agisce da kill switch dell'invio automatico. Deve valere esattamente `true` per i
+run schedulati e per la modalità `recovery`; non abilita l'invio nei run manuali
+`full`.
 
 `SIRACUSA_FACEBOOK_SIGNUP_URL` è opzionale e non contiene credenziali: permette di
 personalizzare il link tracciato inserito nel primo commento del recap.
@@ -98,14 +101,23 @@ personalizzare il link tracciato inserito nel primo commento del recap.
 | `GITHUB_DASHBOARD_TOKEN` | Lettura read-only dei workflow |
 | `GITHUB_REPOSITORY` | Repository monitorata |
 | `SIRACUSA_IMAGE_UPLOAD_TOKEN` | Autorizzazione upload immagini |
-| `SIRACUSA_GITHUB_ACTIONS_TOKEN` | Avvio del workflow di recovery alle 07:30 |
+| `SIRACUSA_GITHUB_ACTIONS_TOKEN` | Token fine-grained per avviare il workflow di recovery alle 07:30 |
 
-I valori segreti non vengono incorporati nel bundle statico o inviati al browser.
+`SIRACUSA_GITHUB_ACTIONS_TOKEN` è limitato al solo repository, con
+`Actions: read and write` e `Metadata: read-only`. Ha scadenza annuale e deve
+essere ruotato prima della scadenza indicata da GitHub. Sul piano Netlify attuale
+Secret Controller obbliga gli scope specifici, che richiedono un upgrade: il token
+è quindi conservato come variabile di sito ordinaria, disponibile a tutti gli
+scope e contesti. Rimane leggibile agli amministratori Netlify, ma non viene
+referenziato dal frontend né incorporato nel bundle statico. Questa è una scelta
+operativa consapevole, compensata dal privilegio minimo del token.
 
 ## Sicurezza e deliverability
 
-- Repository privata.
-- Segreti cifrati in GitHub e Netlify.
+- Repository attualmente pubblico; il passaggio a privato è rinviato fino alla
+  verifica end-to-end del nuovo recovery.
+- Chiavi provider e token applicativi conservati nei secret GitHub o nelle
+  variabili Netlify, senza valori nel repository.
 - Token dashboard e immagini confrontati con `timingSafeEqual`.
 - Nessuna chiave provider nel frontend.
 - Upload immagini limitato per tipo, firma, dimensione e naming.
@@ -142,7 +154,7 @@ aggiunge soltanto richieste HTTP alle fonti pubbliche ufficiali.
 - HTML, log e materiali Facebook: artifact GitHub per 7 giorni;
 - campagne e statistiche: conservazione Brevo;
 - immagini: Netlify Blobs, senza pulizia automatica attualmente configurata;
-- codice e configurazione: branch `main` del repository privato.
+- codice e configurazione: branch `main` del repository GitHub.
 
 ## Limiti architetturali noti
 
@@ -153,6 +165,11 @@ aggiunge soltanto richieste HTTP alle fonti pubbliche ufficiali.
   della connessione interna; gli artifact GitHub restano il fallback tecnico.
 - Le immagini possono mancare quando una fonte blocca il download o non espone metadati idonei.
 - I run schedulati inviano automaticamente; la revisione umana preventiva è disponibile disattivando il kill switch o usando un run manuale.
+- GitHub e Netlify costituiscono due scheduler distinti ma il motore continua a
+  essere eseguito su GitHub Actions; un'indisponibilità completa di GitHub può
+  quindi bloccare anche il recovery.
+- Il recovery dipende dalla validità del token fine-grained Netlify e dalla sua
+  rotazione prima della scadenza.
 - Non esiste ancora un pannello editoriale per modificare la selezione prima della creazione della bozza.
 
 ## Riferimenti nel repository
@@ -165,5 +182,6 @@ aggiunge soltanto richieste HTTP alle fonti pubbliche ufficiali.
 - `.github/workflows/newsletter-daily.yml`: automazione di produzione;
 - `netlify.toml`: build e Functions;
 - `backend/tests/`: suite di verifica.
+- `tests/newsletter-recovery.test.mjs`: test della Scheduled Function Netlify.
 
 [← Precedente: Analytics](08-analytics.md) · [Torna all'indice](../../SIRACUSADAILY_TECHNICAL.md)

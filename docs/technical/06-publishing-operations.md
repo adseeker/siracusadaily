@@ -19,6 +19,13 @@ prima del retrieval: se la campagna esiste già, termina senza chiamare OpenAI;
 altrimenti esegue la pipeline completa con programmazione automatica. Il gruppo di
 concorrenza serializza eventuali run GitHub arrivati in ritardo.
 
+La Function Netlify non interroga preventivamente lo stato dei run GitHub. Inoltra
+sempre la richiesta delle 07:30 e delega l'idempotenza al controllo remoto Brevo,
+già usato dalla pipeline. In questo modo un errore o un ritardo nell'API GitHub non
+può produrre una decisione errata nel watchdog. Se il tentativo delle 07:00 parte
+in ritardo, il gruppo `siracusadaily-newsletter` mette i run in sequenza e quello
+successivo trova la campagna esistente.
+
 Netlify esegue i cron in UTC. La funzione è invocata nelle due finestre compatibili
 con ora solare e ora legale e inoltra la richiesta soltanto quando in
 `Europe/Rome` sono le 07:30.
@@ -29,6 +36,14 @@ Tra le modalità disponibili tramite `workflow_dispatch`:
 - `full`: esegue l'intera pipeline e crea una bozza senza inviarla;
 - `recovery`: modalità riservata a Netlify, equivalente a un run schedulato con
   invio automatico e protezione anti-duplicato.
+
+Il recovery richiede `SIRACUSA_GITHUB_ACTIONS_TOKEN` su Netlify. Il token è
+fine-grained, limitato al repository `adseeker/siracusadaily`, con permessi
+`Actions: read and write` e `Metadata: read-only`. Sul piano Netlify corrente non
+è disponibile la combinazione Secret Controller più scope `Functions`; la
+variabile è quindi memorizzata come variabile di sito ordinaria a tutti gli scope.
+Non viene referenziata da Next.js, non usa il prefisso `NEXT_PUBLIC_` e non viene
+inclusa nel sito esportato.
 
 ## Idempotenza e concorrenza
 

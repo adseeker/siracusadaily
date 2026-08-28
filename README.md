@@ -11,10 +11,13 @@ Variabili Netlify:
 - `BREVO_LIST_ID`: ID della lista SiracusaDaily, attualmente `7`;
 - `OPENAI_ADMIN_KEY`: utilizzo e costi API OpenAI, facoltativa;
 - `OPENAI_PROJECT_ID`: limita costi e utilizzo al progetto SiracusaDaily, consigliata;
-- `GITHUB_DASHBOARD_TOKEN`: token read-only per leggere i run della repository privata;
+- `GITHUB_DASHBOARD_TOKEN`: token read-only per leggere i run GitHub Actions;
 - `GITHUB_REPOSITORY`: repository nel formato `owner/repo`, predefinita `adseeker/siracusadaily`.
 - `SIRACUSA_IMAGE_UPLOAD_TOKEN`: token privato condiviso con GitHub Actions per
   pubblicare le thumbnail della newsletter nel Blob store Netlify.
+- `SIRACUSA_GITHUB_ACTIONS_TOKEN`: token GitHub fine-grained, limitato al solo
+  repository e al permesso `Actions: read and write`, usato dalla Function di
+  recovery delle 07:30.
 
 Landing page e motore editoriale della newsletter quotidiana SiracusaDaily.
 
@@ -37,14 +40,21 @@ Il sito è esportato staticamente e pubblicato automaticamente su Netlify a ogni
 
 Il backend Python è in `backend/`. Esegue retrieval, classificazione, deduplicazione,
 selezione, scrittura OpenAI e consegna tramite Brevo. GitHub Actions avvia la
-pipeline alle 06:30, ora di Roma; due controlli successivi alle 07:00 e alle 07:30
-recuperano eventuali ritardi o errori temporanei senza creare campagne duplicate.
+pipeline alle 06:30 e riprova alle 07:00, ora di Roma. Alle 07:30 una Scheduled
+Function Netlify richiama lo stesso workflow in modalità `recovery`, creando un
+secondo percorso di attivazione indipendente dallo scheduler GitHub.
+
+Il recovery Netlify viene richiesto ogni giorno: è il workflow a interrogare Brevo.
+Se la campagna dell'edizione esiste già, il run termina prima del retrieval e non
+chiama OpenAI; se manca, esegue l'intera pipeline e programma la campagna. Un gruppo
+di concorrenza unico serializza eventuali trigger arrivati in ritardo.
 
 Le chiavi API sono cifrate nei GitHub Actions Secrets. Il database operativo è
-conservato nel branch privato `automation-state`; HTML e log restano disponibili
+conservato nel branch separato `automation-state`; HTML e log restano disponibili
 come artifact del run per 7 giorni. I run schedulati programmano la campagna alle
 08:30 oppure, se terminano tardi, a 15 minuti dal completamento. I run manuali
-restano in modalità bozza e una variabile GitHub funge da kill switch.
+`full` restano in modalità bozza; i run `recovery` equivalgono invece ai run
+schedulati. Una variabile GitHub funge da kill switch per entrambi.
 
 Consultare `backend/README.md` per configurazione ed esecuzione.
 

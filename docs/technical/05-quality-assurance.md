@@ -2,19 +2,24 @@
 
 [← Indice della documentazione tecnica](../../SIRACUSADAILY_TECHNICAL.md)
 
-Ultimo aggiornamento: 12 agosto 2026<br>
+Ultimo aggiornamento: 28 agosto 2026<br>
 Stato: sistema operativo in produzione
 
 
 ## Test automatici
 
-Il repository contiene attualmente 112 test automatici eseguiti prima di ogni run:
+Il repository contiene 130 test Python eseguiti prima di ogni run editoriale e 5
+test Node dedicati al recovery Netlify:
 
-- 84 test di pipeline;
+- 86 test di pipeline;
 - 10 test dedicati alle immagini;
 - 5 test dedicati al recap Facebook;
 - 5 test dedicati alla pubblicazione operativa su Notion;
-- 8 test dedicati agli aggiornamenti utili.
+- 8 test dedicati agli aggiornamenti utili;
+- 6 test dedicati al feed pubblico degli eventi;
+- 10 test dedicati all'acquisizione manuale da Notion;
+- 5 test dedicati a fuso orario, ora solare/legale, payload GitHub, finestra UTC e
+  credenziale del recovery Netlify.
 
 La suite copre, tra le altre cose:
 
@@ -41,6 +46,8 @@ La suite copre, tra le altre cose:
   soli casi critici e isolamento della toggle operativa.
 
 Se un test fallisce, GitHub Actions non avvia il motore editoriale.
+I test Netlify vengono eseguiti con `npm test` durante lo sviluppo e verificano la
+Function senza inviare richieste reali a GitHub.
 
 ## Gate di pubblicazione
 
@@ -56,7 +63,10 @@ Prima di creare o programmare una campagna devono essere veri tutti i seguenti p
 - oggetto valido e grounded;
 - secondo controllo Brevo immediatamente prima della creazione.
 
-I run schedulati programmano l'invio soltanto dopo questi controlli. I run manuali continuano a creare una bozza. Il kill switch consente di riportare immediatamente anche l'automazione quotidiana alla sola modalità bozza.
+I run schedulati e la modalità `recovery` programmano l'invio soltanto dopo questi
+controlli. I run manuali `full` continuano a creare una bozza. Il kill switch
+consente di riportare immediatamente l'automazione quotidiana alla sola modalità
+bozza.
 
 ## Comportamento in caso di errore
 
@@ -73,6 +83,8 @@ I run schedulati programmano l'invio soltanto dopo questi controlli. I run manua
 | Campagna già esistente | Run ignorato senza costi OpenAI |
 | Meno di 6 contenuti | Campagna bloccata |
 | Fallimento GitHub Actions | Issue GitHub automatica |
+| Scheduler GitHub non attivato | Recovery Netlify delle 07:30 |
+| Recovery Netlify senza token o rifiutato da GitHub | Errore nei log Netlify; nessuna campagna duplicata |
 
 ## Verifica client email
 

@@ -2,22 +2,31 @@
 
 Pipeline per retrieval, classificazione, deduplicazione, selezione, scrittura e consegna tramite Brevo.
 
-## Automazione GitHub
+## Automazione GitHub e recovery Netlify
 
-Il workflow `.github/workflows/newsletter-daily.yml` parte ogni giorno alle 06:30,
-ora `Europe/Rome`. I passaggi delle 07:00 e 07:30 sono recuperi automatici: se la
-campagna del giorno esiste già su Brevo, terminano prima del retrieval e non usano
-OpenAI.
+Il workflow `.github/workflows/newsletter-daily.yml` riceve due trigger GitHub
+giornalieri alle 06:30 e alle 07:00, ora `Europe/Rome`. Alle 07:30 la Scheduled
+Function Netlify `newsletter-recovery.mjs` richiama lo stesso workflow con
+`workflow_dispatch` e modalità `recovery`.
+
+Netlify non prova a dedurre lo stato dello scheduler GitHub: invia sempre il trigger
+delle 07:30. Il comando `run --skip-existing-brevo-date` usa Brevo come fonte
+autoritativa; se la campagna del giorno esiste già, termina prima del retrieval e
+non usa OpenAI. Se manca, il recovery esegue la pipeline completa e programma
+l'invio come un run schedulato. La concorrenza GitHub serializza i run tardivi e il
+secondo controllo Brevo chiude anche la finestra immediatamente precedente alla
+creazione della campagna.
 
 Il workflow:
 
 - esegue tutti i test prima del run;
 - verifica direttamente su Brevo che l'edizione non esista già;
-- conserva il database nel branch privato `automation-state`;
+- conserva il database nel branch separato `automation-state`;
 - ritenta le chiamate OpenAI in caso di errori temporanei;
 - salva HTML, log e materiali Facebook per 7 giorni;
 - apre una issue GitHub se fallisce;
 - programma automaticamente su Brevo la campagna prodotta dai run schedulati;
+- programma automaticamente anche la campagna prodotta dal recovery Netlify;
 - mantiene i run manuali in modalità bozza.
 
 ## Recap Facebook
@@ -98,9 +107,18 @@ I secret richiesti nel repository sono `OPENAI_API_KEY`, `BREVO_API_KEY` e
 variabile Netlify omonima: autorizza soltanto il caricamento delle thumbnail e non
 viene mai inserito nell'HTML o inviato al browser.
 La variabile GitHub Actions `SIRACUSA_AUTO_SEND_ENABLED` non è un secret e deve
-essere impostata a `true` per abilitare l'invio dei soli run pianificati.
+essere impostata a `true` per abilitare l'invio dei run pianificati e del recovery.
 Dal pannello Actions si può lanciare `preflight`, che controlla l'infrastruttura
-senza chiamare OpenAI né creare una bozza, oppure `full` per un run completo.
+senza chiamare OpenAI né creare una bozza, oppure `full` per un run completo in
+bozza. La modalità `recovery` è riservata alla Function Netlify e abilita la
+programmazione automatica.
+
+Netlify richiede `SIRACUSA_GITHUB_ACTIONS_TOKEN`, un personal access token
+fine-grained limitato a `adseeker/siracusadaily`, con `Actions: read and write` e
+`Metadata: read-only`. Sul piano Netlify attuale il valore è una variabile di sito
+ordinaria disponibile a tutti gli scope, perché Secret Controller con scope
+specifico richiede un upgrade. Non viene comunque usato dal frontend né incorporato
+nel bundle; soltanto `newsletter-recovery.mjs` lo legge tramite `process.env`.
 
 ## Immagini nelle email
 
