@@ -2,7 +2,7 @@
 
 [← Indice della documentazione tecnica](../../SIRACUSADAILY_TECHNICAL.md)
 
-Ultimo aggiornamento: 11 agosto 2026<br>
+Ultimo aggiornamento: 28 agosto 2026<br>
 Stato: sistema operativo in produzione
 
 
@@ -11,7 +11,7 @@ Stato: sistema operativo in produzione
 | Area | Tecnologia | Ruolo |
 |---|---|---|
 | Repository | GitHub privato `adseeker/siracusadaily` | Codice, workflow e issue |
-| Automazione | GitHub Actions, Ubuntu | Scheduler e motore quotidiano |
+| Automazione | GitHub Actions e Netlify Scheduled Functions | Motore quotidiano, scheduler principale e recovery indipendente |
 | Backend | Python 3.12 in produzione | Retrieval, processing e generazione |
 | Persistenza | SQLite WAL | Articoli, run e storico editoriale |
 | Writer | OpenAI Responses API, `gpt-5-mini` | Headline, summary, categoria e oggetto |
@@ -64,6 +64,14 @@ Il database viene sottoposto a checkpoint WAL, committato dal bot e usato dal ru
 - salva nel Blob store `newsletter-images`;
 - espone lettura pubblica con ETag e cache annuale.
 
+### `newsletter-recovery.mjs`
+
+- viene attivata alle 07:30 `Europe/Rome`, con gestione automatica di ora solare e legale;
+- richiama via API il workflow GitHub in modalità `recovery`;
+- usa un token GitHub limitato al repository e alla scrittura Actions;
+- non esegue il motore su Netlify e non contiene chiavi OpenAI o Brevo;
+- il controllo Brevo nel workflow impedisce la creazione di campagne duplicate.
+
 ## Segreti GitHub
 
 | Variabile | Utilizzo |
@@ -90,6 +98,7 @@ personalizzare il link tracciato inserito nel primo commento del recap.
 | `GITHUB_DASHBOARD_TOKEN` | Lettura read-only dei workflow |
 | `GITHUB_REPOSITORY` | Repository monitorata |
 | `SIRACUSA_IMAGE_UPLOAD_TOKEN` | Autorizzazione upload immagini |
+| `SIRACUSA_GITHUB_ACTIONS_TOKEN` | Avvio del workflow di recovery alle 07:30 |
 
 I valori segreti non vengono incorporati nel bundle statico o inviati al browser.
 

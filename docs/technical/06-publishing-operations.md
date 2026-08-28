@@ -2,24 +2,33 @@
 
 [← Indice della documentazione tecnica](../../SIRACUSADAILY_TECHNICAL.md)
 
-Ultimo aggiornamento: 11 agosto 2026<br>
+Ultimo aggiornamento: 28 agosto 2026<br>
 Stato: sistema operativo in produzione
 
 
 ## Pianificazione
 
-Il workflow `.github/workflows/newsletter-daily.yml` usa il fuso `Europe/Rome` e tre trigger giornalieri:
+Il workflow `.github/workflows/newsletter-daily.yml` usa il fuso `Europe/Rome` e due trigger giornalieri:
 
 - 06:30: run principale;
-- 07:00: recupero;
-- 07:30: secondo recupero.
+- 07:00: secondo tentativo GitHub.
 
-I recuperi eseguono il controllo Brevo prima del retrieval. Se la campagna esiste già, terminano senza chiamare OpenAI. GitHub Actions può avviare il job con ritardo rispetto all'orario nominale a causa della coda del servizio.
+Alle 07:30 `newsletter-recovery.mjs`, una Scheduled Function Netlify indipendente,
+richiama il workflow in modalità `recovery`. Il recupero esegue il controllo Brevo
+prima del retrieval: se la campagna esiste già, termina senza chiamare OpenAI;
+altrimenti esegue la pipeline completa con programmazione automatica. Il gruppo di
+concorrenza serializza eventuali run GitHub arrivati in ritardo.
 
-È disponibile anche `workflow_dispatch` con due modalità:
+Netlify esegue i cron in UTC. La funzione è invocata nelle due finestre compatibili
+con ora solare e ora legale e inoltra la richiesta soltanto quando in
+`Europe/Rome` sono le 07:30.
+
+Tra le modalità disponibili tramite `workflow_dispatch`:
 
 - `preflight`: verifica l'infrastruttura senza generare contenuti;
-- `full`: esegue l'intera pipeline e crea una bozza senza inviarla.
+- `full`: esegue l'intera pipeline e crea una bozza senza inviarla;
+- `recovery`: modalità riservata a Netlify, equivalente a un run schedulato con
+  invio automatico e protezione anti-duplicato.
 
 ## Idempotenza e concorrenza
 

@@ -6,8 +6,6 @@ on:
       timezone: "Europe/Rome"
     - cron: "0 7 * * *"
       timezone: "Europe/Rome"
-    - cron: "30 7 * * *"
-      timezone: "Europe/Rome"
   workflow_dispatch:
     inputs:
       mode:
@@ -18,6 +16,7 @@ on:
         options:
           - preflight
           - full
+          - recovery
           - notion-test
           - events-refresh
 
@@ -42,7 +41,7 @@ jobs:
       SIRACUSA_BREVO_SENDER: newsletter@siracusadaily.com
       SIRACUSA_BREVO_SENDER_NAME: SiracusaDaily
       SIRACUSA_BREVO_REPLY_TO: ciao@siracusadaily.com
-      SIRACUSA_AUTO_SEND_ENABLED: ${{ github.event_name == 'schedule' && vars.SIRACUSA_AUTO_SEND_ENABLED == 'true' && 'true' || 'false' }}
+      SIRACUSA_AUTO_SEND_ENABLED: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'recovery')) && vars.SIRACUSA_AUTO_SEND_ENABLED == 'true' && 'true' || 'false' }}
       SIRACUSA_BREVO_SEND_TIME: "08:30"
       SIRACUSA_BREVO_MINIMUM_LEAD_MINUTES: "15"
       SIRACUSA_IMAGE_MODE: netlify
@@ -89,12 +88,12 @@ jobs:
             --page-id 3b9deac1-b022-8196-8a55-d77a97e81cf9
 
       - name: Esegue retrieval, selezione, scrittura e consegna Brevo
-        if: github.event_name == 'schedule' || inputs.mode == 'full'
+        if: github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'recovery'
         run: |
           mkdir -p runtime
           set -o pipefail
           delivery_option="--brevo-draft"
-          if [[ "$GITHUB_EVENT_NAME" == "schedule" ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" || "${{ inputs.mode }}" == "recovery" ]]; then
             delivery_option="--brevo-auto-schedule"
           fi
           siracusa-daily \
@@ -128,7 +127,7 @@ jobs:
             --item-limit 30 2>&1 | tee runtime/events-refresh.log
 
       - name: Rende il recap disponibile su Notion
-        if: github.event_name == 'schedule' || inputs.mode == 'full'
+        if: github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'recovery'
         continue-on-error: true
         run: |
           if [[ -z "${NOTION_TOKEN:-}" ]]; then
@@ -150,7 +149,7 @@ jobs:
           fi
 
       - name: Consolida il database
-        if: always() && (github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'events-refresh')
+        if: always() && (github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'recovery' || inputs.mode == 'events-refresh')
         run: |
           python - <<'PY'
           import sqlite3
@@ -163,7 +162,7 @@ jobs:
           PY
 
       - name: Salva lo storico per il giorno successivo
-        if: always() && (github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'events-refresh')
+        if: always() && (github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'recovery' || inputs.mode == 'events-refresh')
         working-directory: .automation-state
         run: |
           git config user.name "SiracusaDaily Automation"
@@ -177,7 +176,7 @@ jobs:
           fi
 
       - name: Conserva HTML e log del run
-        if: always() && (github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'events-refresh')
+        if: always() && (github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'recovery' || inputs.mode == 'events-refresh')
         uses: actions/upload-artifact@v6
         with:
           name: newsletter-${{ github.run_id }}
@@ -192,7 +191,7 @@ jobs:
           retention-days: 7
 
       - name: Segnala un errore
-        if: failure() && (github.event_name == 'schedule' || inputs.mode == 'full')
+        if: failure() && (github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'recovery')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
