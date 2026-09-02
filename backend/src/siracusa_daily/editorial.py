@@ -13,6 +13,7 @@ from datetime import timezone
 
 from .models import Source, StoryCluster
 from .categories import CATEGORY_ORDER
+from .email_subject import EmailSubjectError, validate_email_subject
 from .text import normalize_text
 
 DEFAULT_MODEL = "gpt-5-mini"
@@ -382,7 +383,10 @@ def _safe_fallback_subject(items: list[EditorialItem], clusters: list[StoryClust
             or not 20 <= len(topic) <= 80
         ):
             continue
-        return topic[0].upper() + topic[1:]
+        try:
+            return validate_email_subject(topic[0].upper() + topic[1:])
+        except EmailSubjectError:
+            continue
     return ""
 
 
@@ -390,8 +394,9 @@ def _validated_subject(
     raw_subject: object, raw_candidate_ids: object, items: list[EditorialItem],
     clusters: list[StoryCluster],
 ) -> str:
-    subject = " ".join(str(raw_subject or "").split())
-    if not 20 <= len(subject) <= 90:
+    try:
+        subject = validate_email_subject(raw_subject)
+    except EmailSubjectError:
         return ""
     lowered = subject.casefold()
     if (

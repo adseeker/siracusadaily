@@ -11,7 +11,7 @@ Stato: sistema operativo in produzione
 | Area | Tecnologia | Ruolo |
 |---|---|---|
 | Repository | GitHub `adseeker/siracusadaily`, attualmente pubblico | Codice, workflow e issue |
-| Automazione | GitHub Actions e Netlify Scheduled Functions | Motore quotidiano, scheduler principale e recovery indipendente |
+| Automazione | GitHub Actions e Netlify Scheduled Functions | Motore quotidiano, recovery e watchdog consegna |
 | Backend | Python 3.12 in produzione | Retrieval, processing e generazione |
 | Persistenza | SQLite WAL | Articoli, run e storico editoriale |
 | Writer | OpenAI Responses API, `gpt-5-mini` | Headline, summary, categoria e oggetto |
@@ -71,6 +71,14 @@ Il database viene sottoposto a checkpoint WAL, committato dal bot e usato dal ru
 - usa un token GitHub fine-grained limitato al repository, con Actions in lettura e scrittura;
 - non esegue il motore su Netlify e non contiene chiavi OpenAI o Brevo;
 - il controllo Brevo nel workflow impedisce la creazione di campagne duplicate.
+
+### `newsletter-delivery-watchdog.mjs`
+
+- viene attivata alle 09:00 `Europe/Rome` con gestione automatica di ora solare e legale;
+- richiama il workflow GitHub dedicato al controllo consegna;
+- riusa il token fine-grained già configurato per il recovery;
+- non legge la chiave Brevo e non esegue il motore su Netlify;
+- non può inviare, annullare o duplicare campagne.
 
 ## Segreti GitHub
 
@@ -170,6 +178,8 @@ aggiunge soltanto richieste HTTP alle fonti pubbliche ufficiali.
   quindi bloccare anche il recovery.
 - Il recovery dipende dalla validità del token fine-grained Netlify e dalla sua
   rotazione prima della scadenza.
+- Il watchdog rileva le anomalie ma il fallback Sender resta intenzionalmente
+  manuale per evitare doppi invii.
 - Non esiste ancora un pannello editoriale per modificare la selezione prima della creazione della bozza.
 
 ## Riferimenti nel repository

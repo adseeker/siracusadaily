@@ -12,7 +12,8 @@ recovery sono pubblicati su Netlify. Il motore editoriale viene eseguito da GitH
 Actions e conserva lo storico operativo in un database SQLite su un branch Git
 separato. GitHub tenta l'avvio alle 06:30 e alle 07:00; alle 07:30 Netlify richiama
 lo stesso workflow per evitare che un mancato evento schedulato impedisca la
-produzione quotidiana.
+produzione quotidiana. Alle 09:00 un secondo workflow controlla che Brevo abbia
+realmente avviato la consegna e segnala le anomalie senza effettuare reinvii.
 
 ```mermaid
 flowchart LR
@@ -64,3 +65,4 @@ flowchart LR
 - [`.github/workflows/newsletter-daily.yml`](.github/workflows/newsletter-daily.yml): automazione di produzione;
 - [`netlify.toml`](netlify.toml): build e Functions;
 - [`backend/tests/`](backend/tests/): suite di verifica.
+- [`docs/incidents/2026-08-27-brevo-subject-unicode.md`](docs/incidents/2026-08-27-brevo-subject-unicode.md): post-mortem e runbook Sender.

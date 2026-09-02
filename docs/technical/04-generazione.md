@@ -67,6 +67,13 @@ L'oggetto è generato ad hoc per ogni edizione, senza prefissi o pattern ricorre
 
 Se l'oggetto generato non supera i controlli, il motore cerca un `subject_topic` sicuro tra i contenuti. Se nessun contenuto è utilizzabile, la bozza viene bloccata.
 
+Prima della pubblicazione viene inoltre applicato un contratto di trasporto
+Unicode: normalizzazione NFC, spazio semplice, UTF-8 strict, massimo 90 caratteri
+e 180 byte, rifiuto di caratteri invisibili o appartenenti alle categorie Unicode
+di controllo. L'oggetto non viene mai troncato. La verifica avviene sia dopo il
+writer sia immediatamente prima della POST Brevo; anche il fallback deve superare
+lo stesso gate.
+
 ## Validazione e riparazione
 
 Il motore valida in modo deterministico:

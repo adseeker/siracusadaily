@@ -8,18 +8,21 @@ Stato: sistema operativo in produzione
 
 ## Test automatici
 
-Il repository contiene 130 test Python eseguiti prima di ogni run editoriale e 5
-test Node dedicati al recovery Netlify:
+Il repository contiene 140 test Python eseguiti prima di ogni run editoriale e
+10 test Node dedicati agli scheduler Netlify:
 
-- 86 test di pipeline;
+- 96 test di pipeline;
 - 10 test dedicati alle immagini;
 - 5 test dedicati al recap Facebook;
 - 5 test dedicati alla pubblicazione operativa su Notion;
 - 8 test dedicati agli aggiornamenti utili;
 - 6 test dedicati al feed pubblico degli eventi;
 - 10 test dedicati all'acquisizione manuale da Notion;
-- 5 test dedicati a fuso orario, ora solare/legale, payload GitHub, finestra UTC e
-  credenziale del recovery Netlify.
+- test dedicati a normalizzazione Unicode, caratteri invisibili, surrogati,
+  limite UTF-8 e payload Brevo dell'oggetto;
+- test dedicati a stato, statistiche e tolleranza del controllo consegna;
+- 10 test Node su fuso orario, ora solare/legale, payload GitHub, finestre UTC e
+  credenziale dei due scheduler Netlify.
 
 La suite copre, tra le altre cose:
 
@@ -37,6 +40,7 @@ La suite copre, tra le altre cose:
 - limiti, lingua, punteggiatura ed em dash;
 - correzioni selettive del writer;
 - protezione dell'oggetto sensibile;
+- integrità Unicode e dimensione UTF-8 dell'oggetto, senza troncamenti;
 - rendering HTML, ordine sezioni, date e scadenze;
 - creazione della campagna Brevo, programmazione e idempotenza;
 - estrazione, compressione e upload delle thumbnail;
@@ -85,6 +89,7 @@ bozza.
 | Fallimento GitHub Actions | Issue GitHub automatica |
 | Scheduler GitHub non attivato | Recovery Netlify delle 07:30 |
 | Recovery Netlify senza token o rifiutato da GitHub | Errore nei log Netlify; nessuna campagna duplicata |
+| Campagna assente o ferma a zero dopo la tolleranza | Issue GitHub; nessun reinvio automatico |
 
 ## Verifica client email
 

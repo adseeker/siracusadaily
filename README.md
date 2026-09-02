@@ -44,6 +44,10 @@ pipeline alle 06:30 e riprova alle 07:00, ora di Roma. Alle 07:30 una Scheduled
 Function Netlify richiama lo stesso workflow in modalità `recovery`, creando un
 secondo percorso di attivazione indipendente dallo scheduler GitHub.
 
+Alle 09:00 una seconda Scheduled Function avvia un controllo non distruttivo della
+consegna Brevo. Se la campagna manca o resta a zero oltre 15 minuti dall'orario
+programmato, viene aperta una issue GitHub; non sono previsti reinvii automatici.
+
 Il recovery Netlify viene richiesto ogni giorno: è il workflow a interrogare Brevo.
 Se la campagna dell'edizione esiste già, il run termina prima del retrieval e non
 chiama OpenAI; se manca, esegue l'intera pipeline e programma la campagna. Un gruppo

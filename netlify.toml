@@ -14,6 +14,11 @@
 [functions."newsletter-recovery"]
   schedule = "30 5,6 * * *"
 
+# Due finestre UTC coprono ora solare e legale. Soltanto l'invocazione che
+# corrisponde alle 09:00 Europe/Rome avvia il controllo della consegna Brevo.
+[functions."newsletter-delivery-watchdog"]
+  schedule = "0 7,8 * * *"
+
 [[headers]]
   for = "/*"
   [headers.values]

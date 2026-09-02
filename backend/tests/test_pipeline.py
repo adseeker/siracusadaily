@@ -12,14 +12,18 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from siracusa_daily.brevo import (
+    BrevoCampaign,
+    BrevoCampaignDelivery,
     BrevoError,
     _api_key,
     automatic_send_enabled,
     campaign_schedule,
+    check_campaign_delivery,
     create_campaign_draft,
     create_campaign_scheduled,
     find_campaign_for_edition,
     find_list,
+    get_campaign_delivery,
 )
 from siracusa_daily.database import (
     active_opportunity_articles,
@@ -43,6 +47,11 @@ from siracusa_daily.editorial import (
     generate_editorial,
     generate_openai,
     validate_items,
+)
+from siracusa_daily.email_subject import (
+    EmailSubjectError,
+    normalize_email_subject,
+    validate_email_subject,
 )
 from siracusa_daily.geography import evaluate_locality
 from siracusa_daily.events import event_is_in_window, sort_event_clusters
@@ -419,6 +428,27 @@ class PipelineTests(unittest.TestCase):
             with self.assertRaises(BrevoError):
                 _api_key()
 
+    def test_email_subject_normalizes_accents_and_whitespace(self) -> None:
+        subject = normalize_email_subject("  Citta\u0300\u00a0di Siracusa: nuovo servizio  ")
+        self.assertEqual(subject, "Città di Siracusa: nuovo servizio")
+
+    def test_email_subject_rejects_invisible_unicode(self) -> None:
+        with self.assertRaisesRegex(EmailSubjectError, "U\\+200B"):
+            validate_email_subject("Nuovo servizio\u200b disponibile a Siracusa")
+
+    def test_email_subject_rejects_an_isolated_surrogate(self) -> None:
+        with self.assertRaisesRegex(EmailSubjectError, "U\\+D800"):
+            validate_email_subject("Nuovo servizio \ud800 disponibile a Siracusa")
+
+    def test_email_subject_accepts_utf8_boundary_without_truncation(self) -> None:
+        subject = "é" * 90
+        self.assertEqual(len(subject.encode("utf-8")), 180)
+        self.assertEqual(validate_email_subject(subject), subject)
+
+    def test_email_subject_rejects_excessive_utf8_bytes(self) -> None:
+        with self.assertRaisesRegex(EmailSubjectError, "troppo grande in UTF-8"):
+            validate_email_subject("🙂" * 46)
+
     def test_brevo_list_is_matched_by_exact_name(self) -> None:
         response = {"lists": [
             {"id": 10, "name": "Iscritti SiracusaDaily vecchi"},
@@ -469,6 +499,34 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(payload["scheduledAt"], "2026-08-12T08:30:00.000+02:00")
         self.assertEqual(result.scheduled_at, scheduled_at)
 
+    def test_brevo_payload_uses_the_normalized_subject(self) -> None:
+        responses = [
+            {"lists": [{"id": 11, "name": "Iscritti SiracusaDaily"}]},
+            {"id": 99},
+        ]
+        with patch("siracusa_daily.brevo._request", side_effect=responses) as request:
+            create_campaign_draft(
+                "<html><body>Newsletter valida</body></html>",
+                date(2026, 8, 27),
+                "Citta\u0300\u00a0di Siracusa: nuovo servizio",
+                run_id=22,
+                api_key="test",
+            )
+        payload = request.call_args_list[1].kwargs["payload"]
+        self.assertEqual(payload["subject"], "Città di Siracusa: nuovo servizio")
+
+    def test_brevo_rejects_an_unsafe_subject_before_api_calls(self) -> None:
+        with patch("siracusa_daily.brevo._request") as request:
+            with self.assertRaisesRegex(BrevoError, "oggetto email non sicuro"):
+                create_campaign_draft(
+                    "<html><body>Newsletter valida</body></html>",
+                    date(2026, 8, 27),
+                    "Nuovo servizio\u200b disponibile a Siracusa",
+                    run_id=22,
+                    api_key="test",
+                )
+        request.assert_not_called()
+
     def test_campaign_schedule_uses_target_when_lead_time_is_available(self) -> None:
         scheduled_at = campaign_schedule(
             date(2026, 8, 12),
@@ -513,6 +571,55 @@ class PipelineTests(unittest.TestCase):
         with patch("siracusa_daily.brevo._request", return_value={"campaigns": []}):
             result = find_campaign_for_edition(datetime(2026, 8, 10).date(), api_key="test")
         self.assertIsNone(result)
+
+    def test_brevo_delivery_detail_reads_status_and_statistics(self) -> None:
+        response = {
+            "id": 99,
+            "name": "SiracusaDaily | 27/08/2026 | run 22",
+            "status": "sent",
+            "scheduledAt": "2026-08-27T08:30:00+02:00",
+            "statistics": {"globalStats": {"sent": 165, "delivered": 162}},
+        }
+        with patch("siracusa_daily.brevo._request", return_value=response) as request:
+            result = get_campaign_delivery(99, api_key="test")
+        self.assertEqual(result.status, "sent")
+        self.assertEqual(result.sent, 165)
+        self.assertEqual(result.delivered, 162)
+        self.assertEqual(result.scheduled_at.hour, 8)
+        self.assertEqual(request.call_args.kwargs["query"]["statistics"], "globalStats")
+        self.assertEqual(request.call_args.kwargs["query"]["excludeHtmlContent"], "true")
+
+    def test_delivery_check_accepts_a_future_scheduled_campaign(self) -> None:
+        listing = BrevoCampaign(99, "SiracusaDaily | 27/08/2026 | run 22", "scheduled")
+        detail = BrevoCampaignDelivery(
+            99, listing.name, "scheduled",
+            datetime(2026, 8, 27, 9, 10, tzinfo=ZoneInfo("Europe/Rome")), 0, 0,
+        )
+        with (
+            patch("siracusa_daily.brevo.find_campaign_for_edition", return_value=listing),
+            patch("siracusa_daily.brevo.get_campaign_delivery", return_value=detail),
+        ):
+            result = check_campaign_delivery(
+                date(2026, 8, 27),
+                now=datetime(2026, 8, 27, 9, 0, tzinfo=ZoneInfo("Europe/Rome")),
+            )
+        self.assertEqual(result, detail)
+
+    def test_delivery_check_flags_zero_recipients_after_grace_period(self) -> None:
+        listing = BrevoCampaign(99, "SiracusaDaily | 27/08/2026 | run 22", "queued")
+        detail = BrevoCampaignDelivery(
+            99, listing.name, "queued",
+            datetime(2026, 8, 27, 8, 30, tzinfo=ZoneInfo("Europe/Rome")), 0, 0,
+        )
+        with (
+            patch("siracusa_daily.brevo.find_campaign_for_edition", return_value=listing),
+            patch("siracusa_daily.brevo.get_campaign_delivery", return_value=detail),
+        ):
+            with self.assertRaisesRegex(BrevoError, "non partita"):
+                check_campaign_delivery(
+                    date(2026, 8, 27),
+                    now=datetime(2026, 8, 27, 9, 0, tzinfo=ZoneInfo("Europe/Rome")),
+                )
 
     def test_brevo_draft_is_recorded_on_newsletter_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

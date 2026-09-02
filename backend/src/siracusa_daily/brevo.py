@@ -11,6 +11,8 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
+from .email_subject import EmailSubjectError, validate_email_subject
+
 
 API_BASE = "https://api.brevo.com/v3"
 DEFAULT_LIST_NAME = "Iscritti SiracusaDaily"
@@ -42,6 +44,16 @@ class BrevoCampaign:
     campaign_id: int
     name: str
     status: str
+
+
+@dataclass(frozen=True)
+class BrevoCampaignDelivery:
+    campaign_id: int
+    name: str
+    status: str
+    scheduled_at: datetime | None
+    sent: int
+    delivered: int
 
 
 def _api_key(explicit: str | None = None) -> str:
@@ -157,6 +169,80 @@ def find_campaign_for_edition(
         offset += 50
 
 
+def _campaign_datetime(value: object) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise BrevoError(f"data campagna Brevo non valida: {raw}") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        parsed = parsed.replace(tzinfo=ROME)
+    return parsed.astimezone(ROME)
+
+
+def get_campaign_delivery(
+    campaign_id: int, *, api_key: str | None = None,
+) -> BrevoCampaignDelivery:
+    result = _request(
+        "GET", f"/emailCampaigns/{campaign_id}", api_key=api_key,
+        query={"statistics": "globalStats", "excludeHtmlContent": "true"},
+    )
+    statistics = result.get("statistics", {})
+    global_stats = statistics.get("globalStats", {}) if isinstance(statistics, dict) else {}
+    if not isinstance(global_stats, dict):
+        global_stats = {}
+
+    def count(name: str) -> int:
+        try:
+            return max(0, int(global_stats.get(name, 0) or 0))
+        except (TypeError, ValueError) as exc:
+            raise BrevoError(f"statistica Brevo non valida: {name}") from exc
+
+    try:
+        resolved_id = int(result.get("id", campaign_id))
+    except (TypeError, ValueError) as exc:
+        raise BrevoError("dettaglio campagna Brevo senza ID valido") from exc
+    return BrevoCampaignDelivery(
+        campaign_id=resolved_id,
+        name=str(result.get("name", "")).strip(),
+        status=str(result.get("status", "unknown")).strip().casefold(),
+        scheduled_at=_campaign_datetime(result.get("scheduledAt")),
+        sent=count("sent"),
+        delivered=count("delivered"),
+    )
+
+
+def check_campaign_delivery(
+    edition_date: date, *, now: datetime | None = None,
+    grace_minutes: int = 15, api_key: str | None = None,
+) -> BrevoCampaignDelivery:
+    if not 5 <= grace_minutes <= 120:
+        raise BrevoError("la tolleranza del controllo consegna deve essere tra 5 e 120 minuti")
+    campaign = find_campaign_for_edition(edition_date, api_key=api_key)
+    if campaign is None:
+        raise BrevoError(f"nessuna campagna trovata per {edition_date.isoformat()}")
+    delivery = get_campaign_delivery(campaign.campaign_id, api_key=api_key)
+    current = (now or datetime.now(ROME)).astimezone(ROME)
+    deadline = (
+        delivery.scheduled_at + timedelta(minutes=grace_minutes)
+        if delivery.scheduled_at is not None else None
+    )
+
+    if delivery.status == "sent" or delivery.sent > 0 or delivery.delivered > 0:
+        return delivery
+    if deadline is not None and current <= deadline:
+        return delivery
+
+    schedule = delivery.scheduled_at.isoformat() if delivery.scheduled_at else "assente"
+    raise BrevoError(
+        f"campagna #{delivery.campaign_id} non partita: stato={delivery.status}; "
+        f"inviati={delivery.sent}; consegnati={delivery.delivered}; "
+        f"programmazione={schedule}; controllo={current.isoformat()}"
+    )
+
+
 def automatic_send_enabled(explicit: str | None = None) -> bool:
     raw = explicit if explicit is not None else os.getenv("SIRACUSA_AUTO_SEND_ENABLED", "")
     normalized = raw.strip().casefold()
@@ -230,6 +316,10 @@ def _create_campaign(
         scheduled_at.tzinfo is None or scheduled_at.utcoffset() is None
     ):
         raise BrevoError("la programmazione Brevo deve includere il fuso orario")
+    try:
+        subject = validate_email_subject(subject)
+    except EmailSubjectError as exc:
+        raise BrevoError(f"oggetto email non sicuro: {exc}") from exc
     target = find_list(list_name, api_key=api_key)
     sender_email = os.getenv("SIRACUSA_BREVO_SENDER", "newsletter@siracusadaily.com")
     sender_name = os.getenv("SIRACUSA_BREVO_SENDER_NAME", "SiracusaDaily")

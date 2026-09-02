@@ -58,14 +58,22 @@ Il workflow generato dal recovery compare in GitHub Actions con evento
 Brevo del giorno permette di distinguere un recupero realmente produttivo da un
 run terminato correttamente per idempotenza.
 
+## Watchdog di consegna
+
+Alle 09:00 Netlify invia un dispatch al workflow
+`newsletter-delivery-watchdog.yml`. Il workflow usa la stessa `BREVO_API_KEY`,
+senza OpenAI e senza database, e controlla la campagna del giorno con 15 minuti di
+tolleranza rispetto all'orario realmente programmato. Un'anomalia apre una sola
+issue GitHub per data con il link ai log e il richiamo al fallback manuale Sender.
+
 ## Persistenza anche in caso di errore
 
 Il checkpoint SQLite e il salvataggio del branch operativo vengono eseguiti con `if: always()` nei run completi. Gli articoli già acquisiti non vengono quindi persi se una fase successiva fallisce.
 
 ## Limiti attuali del monitoring
 
-- Le issue GitHub segnalano i run falliti ma non l'assenza totale di un trigger;
-  Netlify copre questo caso alle 07:30, senza ancora inviare un alert separato.
+- Le issue GitHub segnalano i run falliti e il watchdog segnala campagna assente o
+  non partita; il recovery Netlify copre invece l'assenza del trigger produttivo.
 - Gli errori della Scheduled Function sono visibili nei log Netlify ma non generano
   attualmente una notifica esterna dedicata.
 - I warning dei singoli endpoint non producono alert separati.

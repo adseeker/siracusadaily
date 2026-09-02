@@ -69,6 +69,18 @@ L'orario ordinario è 08:30, `Europe/Rome`. Se la produzione termina dopo le 08:
 
 Il comando manuale `workflow_dispatch` in modalità `full` crea sempre una bozza e non programma l'invio. In questo modo i test o le rigenerazioni manuali non possono spedire accidentalmente una campagna.
 
+## Controllo post-invio
+
+Alle 09:00 Europe/Rome la Scheduled Function Netlify
+`newsletter-delivery-watchdog.mjs` richiama un workflow GitHub separato. Il
+controllo interroga il dettaglio della campagna Brevo e verifica stato, orario
+programmato, messaggi inviati e consegnati. Una campagna ancora in attesa viene
+considerata regolare finché non sono trascorsi 15 minuti dall'orario pianificato.
+
+Se la campagna manca o rimane a zero oltre la tolleranza, il workflow fallisce e
+apre una issue GitHub. Non annulla, duplica o reinvia nulla: una reazione automatica
+potrebbe produrre doppie consegne qualora Brevo si sbloccasse successivamente.
+
 ## Pubblicazione Facebook, fase di validazione
 
 Ogni run completo allega all'artifact GitHub `facebook_post.txt` e
@@ -136,5 +148,13 @@ scripts/run_daily.sh
 Il run locale usa `backend/runtime/` per database, HTML e log. Le immagini sono disattivate per impostazione predefinita; per pubblicarle su Netlify servono modalità `netlify` e token dedicato.
 
 Il LaunchAgent macOS incluso è soltanto una procedura di emergenza. Non deve essere attivo insieme a GitHub Actions; il suo plist storico è configurato alle 09:30 e resta in modalità bozza salvo configurazione locale esplicita.
+
+## Fallback Sender
+
+Sender è configurato come provider di emergenza ma resta fuori dal motore. In
+caso di incidente bisogna prima verificare che Brevo non abbia accodato destinatari,
+quindi recuperare l'HTML dall'artifact, aggiornare la lista, sostituire l'oggetto e
+inviare manualmente. Il runbook completo è in
+[`docs/incidents/2026-08-27-brevo-subject-unicode.md`](../incidents/2026-08-27-brevo-subject-unicode.md).
 
 [← Precedente: Quality Assurance](05-quality-assurance.md) · [Successivo: Monitoring e logging →](07-monitoring-logging.md)

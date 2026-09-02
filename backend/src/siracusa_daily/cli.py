@@ -10,6 +10,7 @@ from .brevo import (
     DEFAULT_LIST_NAME,
     automatic_send_enabled,
     campaign_schedule,
+    check_campaign_delivery,
     create_campaign_draft,
     create_campaign_scheduled,
     find_campaign_for_edition,
@@ -66,6 +67,9 @@ def parser() -> argparse.ArgumentParser:
     preflight = commands.add_parser("preflight")
     preflight.add_argument("--date", type=date.fromisoformat)
     preflight.add_argument("--brevo-list", default=DEFAULT_LIST_NAME)
+    delivery_check = commands.add_parser("delivery-check")
+    delivery_check.add_argument("--date", type=date.fromisoformat)
+    delivery_check.add_argument("--grace-minutes", type=int, default=15)
     retry_draft = commands.add_parser("brevo-draft")
     retry_draft.add_argument("--run-id", type=int, required=True)
     retry_draft.add_argument("--input", type=Path)
@@ -191,6 +195,22 @@ def main() -> None:
             f"(ID {target.list_id}); {campaign} per {edition_date.isoformat()}; "
             f"invio automatico {'attivo per ' + planned.isoformat() if planned else 'disattivato'}; "
             "OPENAI_API_KEY configurata."
+        )
+        return
+    if args.command == "delivery-check":
+        edition_date = args.date or date.today()
+        try:
+            delivery = check_campaign_delivery(
+                edition_date,
+                grace_minutes=args.grace_minutes,
+            )
+        except BrevoError as exc:
+            raise SystemExit(f"Controllo consegna Brevo fallito: {exc}") from exc
+        schedule = delivery.scheduled_at.isoformat() if delivery.scheduled_at else "assente"
+        print(
+            f"Consegna Brevo regolare: campagna #{delivery.campaign_id}; "
+            f"stato={delivery.status}; inviati={delivery.sent}; "
+            f"consegnati={delivery.delivered}; programmazione={schedule}"
         )
         return
     if args.command == "brevo-draft":
