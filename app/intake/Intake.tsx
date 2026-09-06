@@ -1,9 +1,8 @@
 "use client";
 
-import { ChangeEvent, ClipboardEvent, DragEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, ClipboardEvent, DragEvent, useRef, useState } from "react";
 import styles from "./Intake.module.css";
 
-const TOKEN_KEY = "siracusadaily-intake-token";
 const ENDPOINT = "/.netlify/functions/social-intake";
 const MAX_DIMENSION = 1600;
 
@@ -60,10 +59,6 @@ function downscale(file: File): Promise<string> {
 }
 
 export function Intake() {
-  const [token, setToken] = useState("");
-  const [draftToken, setDraftToken] = useState("");
-  const [gateReady, setGateReady] = useState(false);
-
   const [image, setImage] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [link, setLink] = useState("");
@@ -75,23 +70,6 @@ export function Intake() {
   const [include, setInclude] = useState<boolean[]>([]);
   const [notice, setNotice] = useState<Notice | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const saved = sessionStorage.getItem(TOKEN_KEY) || "";
-    const timer = window.setTimeout(() => {
-      if (saved) setToken(saved);
-      setGateReady(true);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  function saveToken(event: FormEvent) {
-    event.preventDefault();
-    const clean = draftToken.trim();
-    if (!clean) return;
-    sessionStorage.setItem(TOKEN_KEY, clean);
-    setToken(clean);
-  }
 
   function resetAll() {
     setImage(null);
@@ -144,10 +122,9 @@ export function Intake() {
     try {
       const response = await fetch(ENDPOINT, {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "extract", image, text: text.trim(), link: link.trim(), account: account.trim() }),
       });
-      if (response.status === 401) return handleUnauthorized();
       const data = await response.json();
       if (!response.ok) {
         setNotice({ kind: "error", text: data.error || `Errore ${response.status}` });
@@ -178,10 +155,9 @@ export function Intake() {
     try {
       const response = await fetch(ENDPOINT, {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "save", items: selected, text: text.trim(), link: link.trim(), account: account.trim() }),
       });
-      if (response.status === 401) return handleUnauthorized();
       const data = await response.json();
       if (!response.ok || !data.created) {
         setNotice({ kind: "error", text: data.error || `Errore ${response.status}` });
@@ -199,36 +175,6 @@ export function Intake() {
 
   function toggleInclude(index: number) {
     setInclude((current) => current.map((value, i) => (i === index ? !value : value)));
-  }
-
-  function handleUnauthorized() {
-    sessionStorage.removeItem(TOKEN_KEY);
-    setToken("");
-    setNotice({ kind: "error", text: "Codice di accesso non valido" });
-    setPhase("edit");
-  }
-
-  if (!gateReady) return <main className={styles.shell} />;
-
-  if (!token) {
-    return (
-      <main className={styles.shell}>
-        <form className={styles.gate} onSubmit={saveToken}>
-          <h1 className={styles.gateTitle}>Intake social</h1>
-          <p className={styles.gateHint}>Inserisci il codice di accesso per raccogliere contenuti.</p>
-          <label htmlFor="intake-token">Codice di accesso</label>
-          <input
-            id="intake-token"
-            type="password"
-            value={draftToken}
-            onChange={(event) => setDraftToken(event.target.value)}
-            autoComplete="current-password"
-            required
-          />
-          <button type="submit">Entra</button>
-        </form>
-      </main>
-    );
   }
 
   const busy = phase === "extracting" || phase === "saving";

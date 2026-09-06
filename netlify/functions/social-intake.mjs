@@ -1,5 +1,3 @@
-import crypto from "node:crypto";
-
 // Intake manuale delle fonti social: riceve uno screenshot e/o una caption,
 // estrae i campi rilevanti con un modello multimodale e scrive una riga
 // strutturata nel database Notion "Raccolta manuale — Fonti Social".
@@ -32,16 +30,6 @@ function json(statusCode, body) {
     },
     body: JSON.stringify(body),
   };
-}
-
-function authorized(event) {
-  const configured = process.env.SIRACUSA_INTAKE_TOKEN || "";
-  const supplied = (event.headers.authorization || event.headers.Authorization || "")
-    .replace(/^Bearer\s+/i, "");
-  if (!configured || !supplied) return false;
-  const expected = Buffer.from(configured);
-  const actual = Buffer.from(supplied);
-  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
 }
 
 // Converte un data URL (data:image/...;base64,XXXX) in { mediaType, bytes }.
@@ -227,10 +215,6 @@ export async function handler(event) {
     return { statusCode: 204, headers: { allow: "POST, OPTIONS" }, body: "" };
   }
   if (event.httpMethod !== "POST") return json(405, { error: "Metodo non consentito" });
-  if (!process.env.SIRACUSA_INTAKE_TOKEN) {
-    return json(503, { error: "Intake non configurato sul server" });
-  }
-  if (!authorized(event)) return json(401, { error: "Codice di accesso non valido" });
 
   let body;
   try {
